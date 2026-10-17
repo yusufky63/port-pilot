@@ -6,6 +6,11 @@ PortPilot, Windows'taki her yerel geliştirme portunu açıklar: onu hangi süre
 
 > Durum: `0.1.0-alpha.1`, ilk kilometre taşı ("Her yerel geliştirme portunu açıkla"). Asıl hedef Windows 11; Windows 10'da elden geldiğince çalışır.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/ports-dark.png">
+  <img alt="Portlar sayfası: üç demo projesinin beş dinleyicisi, 3000 portunda iki sahip ve süreç zinciri ile projesiyle birlikte 5173 portunun ayrıntıları" src="docs/screenshots/ports-light.png">
+</picture>
+
 ## Neye cevap verir
 
 "3000 portunda bir şey var" yalnızca belirtidir. PortPilot arkasındaki soruları cevaplar:
@@ -16,6 +21,11 @@ PortPilot, Windows'taki her yerel geliştirme portunu açıklar: onu hangi süre
 - **Windows mu, WSL mi, Docker mı.** WSL'in `wslrelay.exe`'si ve Docker Desktop'ın `com.docker.backend.exe`'si başka bir şey için host portu tutar. PortPilot bunları yönlendirdikleri Linux sürecine (çalışan dağıtımlarda `ss` ile okunur) ya da container'a (Docker Engine API'sinden okunur) bağlar; arkasında bir şey olmayan yönlendiricileri, yani klasik "port is already allocated" durumunu işaretler.
 - **Port neden kullanılamıyor.** Windows'un ayırdığı aralıklardaki (Hyper-V, WinNAT, WSL ve Docker bloklar ayırır) bir porta, dinleyen olmasa bile bağlanılamaz. `portctl who 3000` ve Tanılama sayfası bunu söyler ve yakındaki boş portları önerir.
 - **Çakışmalar.** Aynı portu farklı adreslerde dinleyen iki sahip (örneğin `127.0.0.1:3000` ve `[::1]:3000`); hangisinin yanıt vereceği IPv4 mü IPv6 mı kullanıldığına bağlıdır.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/projects-dark.png">
+  <img alt="Projeler sayfası: depoya göre gruplanmış dinleyiciler; shop deposunun ana kopyası ve bağlı worktree'si ayrı portlarda" src="docs/screenshots/projects-light.png">
+</picture>
 
 ## Güvenli durdurma
 
@@ -51,9 +61,18 @@ env = { API_URL = "http://localhost:{ports.api}" }
 - **Port kiralamaları.** `{ports.web}` bu depoya, worktree'ye ve servise kiralanmış bir port alır; bir deponun iki worktree'si asla aynı portu almaz. Kiralanan port doluysa PortPilot o worktree için sıradaki boş portu ayırmayı önerir. Yer tutucusu olmayan komutlara port verilmez.
 - **Geçmiş.** Çalıştırmaların, kapanışların ve port değişikliklerinin 14 gün tutulan yerel zaman çizelgesi. Siz açmadıkça komut satırı kaydedilmez.
 
+<img alt="Bağlı bir worktree'deki çalıştırma için güven sorusu: klasör, komutun tam hali ve worktree için yeni port kiralaması" src="docs/screenshots/run-dialog-light.png">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/runs-dark.png">
+  <img alt="Çalıştırmalar sayfası: worktree'nin çalıştırması ve çıktısı, son projeler ve her worktree'nin port kiralamaları" src="docs/screenshots/runs-light.png">
+</picture>
+
+Görüntüler `scripts/demo-projects.mjs` ile oluşturulan demo projelerini gösterir; arayüz İngilizce.
+
 ## Gizlilik
 
-PortPilot hiçbir yere bir şey göndermez: telemetri, çökme raporu, güncelleme kontrolü ya da hesap yok. Komut satırları token, parola ve anahtarlar maskelenerek gösterilir. Yerel geçmiş portları, süreç adlarını ve proje klasörlerini 14 gün tutar; komut satırlarını yalnızca siz açarsanız ve maskeleyerek kaydeder. Başka süreçlerin ortam değişkenleri hiç okunmaz. Ayrıntılar [docs/security.md](docs/security.md) dosyasında.
+Telemetri, çökme raporu ya da hesap yok. Tek ağ isteği güncelleme denetimidir: uygulama günde bir kez GitHub'dan en yeni sürümün `latest.json` dosyasını ister, bilgisayar hakkında hiçbir şey göndermez ve yalnızca PortPilot'un anahtarıyla imzalanmış paketleri kurar. Ayarlar'dan kapatılabilir. Komut satırları token, parola ve anahtarlar maskelenerek gösterilir. Yerel geçmiş portları, süreç adlarını ve proje klasörlerini 14 gün tutar; komut satırlarını yalnızca siz açarsanız ve maskeleyerek kaydeder. Başka süreçlerin ortam değişkenleri hiç okunmaz. Ayrıntılar [docs/security.md](docs/security.md) dosyasında.
 
 ## Komut satırı
 
@@ -76,7 +95,7 @@ portctl list --json              # sürümlü JSON (schemaVersion 1)
 
 ## Kurulum
 
-PortPilot henüz yayımlanmadı. Bir `v*` etiketi gönderildiğinde yayın iş akışı şunları üretir:
+En son sürümü [GitHub Releases](https://github.com/yusufky63/port-pilot/releases/latest) sayfasından indirin:
 
 | Dosya | Kimin için |
 |---|---|
@@ -84,7 +103,9 @@ PortPilot henüz yayımlanmadı. Bir `v*` etiketi gönderildiğinde yayın iş a
 | `PortPilot_<sürüm>_x64_portable.zip` | Kurulum yok. Ayarlar exe'nin yanındaki `data` klasöründe durur. `portctl.exe` de içindedir. |
 | `SHA256SUMS.txt` | Her dosyanın sağlama toplamı. |
 
-Derlemeler henüz kod imzalı değil; SmartScreen uyarı gösterebilir. İkisi de Windows 10 ve 11'de zaten bulunan WebView2 çalışma zamanını kullanır.
+Kurulu kopyalar kendini günceller: yeni bir sürüm çıktığında PortPilot bunu gösterir ve tek tıkla, çalıştırmalarını durdurduktan sonra kurar. Güncelleme yalnızca geçerli bir imzayla kabul edilir. Taşınabilir kopyalar bunun yerine indirme sayfasını açar.
+
+Çalıştırılabilir dosyalar henüz bir sertifikayla kod imzalı değil; SmartScreen ilk açılışta uyarı gösterebilir. İki derleme de Windows 10 ve 11'de zaten bulunan WebView2 çalışma zamanını kullanır.
 
 ### Kaynaktan derleme
 

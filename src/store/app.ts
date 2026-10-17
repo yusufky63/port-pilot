@@ -2,7 +2,7 @@ import { create } from "zustand";
 import i18n, { setLanguage } from "../i18n";
 import { api } from "../lib/api";
 import { DEFAULT_FILTERS, type Filters } from "../lib/filter";
-import type { AppInfo, Listener, RunInfo, Settings, Snapshot } from "../lib/types";
+import type { AppInfo, Listener, RunInfo, Settings, Snapshot, UpdateInfo } from "../lib/types";
 
 export type PageId = "ports" | "projects" | "runs" | "history" | "doctor" | "settings";
 
@@ -36,6 +36,9 @@ interface AppState {
   runFolder: string | null;
   /** Set when quitting was asked for while runs are active: how many. */
   quitRequested: number | null;
+  update: UpdateInfo | null;
+  /** The version whose banner the user set aside for this session. */
+  updateDismissed: string | null;
 
   go: (page: PageId) => void;
   boot: () => Promise<void>;
@@ -59,6 +62,8 @@ interface AppState {
   openRunStop: (run: RunInfo) => void;
   closeRun: () => void;
   setQuitRequested: (active: number | null) => void;
+  setUpdate: (u: UpdateInfo | null) => void;
+  dismissUpdate: (version: string | null) => void;
 }
 
 let toastId = 0;
@@ -119,6 +124,8 @@ export const useApp = create<AppState>((set, get) => ({
   selectedRunId: null,
   runFolder: null,
   quitRequested: null,
+  update: null,
+  updateDismissed: null,
 
   go: (page) => set({ page }),
 
@@ -129,6 +136,7 @@ export const useApp = create<AppState>((set, get) => ({
       applyLanguage(settings.language);
       set({ info, settings, snapshot, paused: info.paused, ready: true });
       void get().refreshRuns();
+      void api.updateStatus().then((update) => set({ update }), () => undefined);
     } catch (e) {
       set({ bootError: errorText(e), ready: true });
     }
@@ -230,4 +238,8 @@ export const useApp = create<AppState>((set, get) => ({
   closeRun: () => set({ runFolder: null }),
 
   setQuitRequested: (quitRequested) => set({ quitRequested }),
+
+  setUpdate: (update) => set({ update }),
+
+  dismissUpdate: (updateDismissed) => set({ updateDismissed }),
 }));

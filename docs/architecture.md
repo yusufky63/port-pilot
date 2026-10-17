@@ -184,6 +184,8 @@ The app's discovery thread compares each snapshot with the previous one and reco
 
 `src-tauri` runs discovery on its own thread (default every 3 s; WSL and Docker results are reused for 10 s, Git state for 10 s) and emits each snapshot to the UI and the tray. Commands are typed: a stop request names a listener id from the current snapshot, "open folder/terminal/VS Code" accepts only folders discovery found, "open URL" only a listener's own URL. The WebView has no shell, file system or opener permission.
 
+The only network request is the update check (`src-tauri/src/update.rs`): Tauri's updater fetches `latest.json` of the newest GitHub release 20 seconds after start and then daily, and installs a package only if its minisign signature matches the public key in `tauri.conf.json`. Portable copies only open the release page.
+
 Settings live in `%APPDATA%\PortPilot\settings.json`, or in `data\` next to the exe when a `portable` file sits there; `portpilot.db` sits next to it. `portctl` uses the same folder, and `PORTPILOT_DATA_DIR` overrides it (the tests use that).
 
 A recipe is read only from a folder discovery found or one the user chose in the native folder dialog, which Rust opens; the WebView never names a folder PortPilot did not see. Run commands take a folder, a run name, the digest the dialog showed and the ports it showed; stop commands take a run id.

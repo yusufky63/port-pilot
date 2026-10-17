@@ -7,6 +7,7 @@ mod actions;
 mod runs;
 mod state;
 mod tray;
+mod update;
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -370,10 +371,12 @@ pub fn run() {
             tray::show_main(app);
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::load())
         .setup(|app| {
             tray::create(app.handle())?;
             start_discovery(app.handle().clone());
+            update::start(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -421,6 +424,10 @@ pub fn run() {
             runs::history_clear,
             runs::trust_list,
             runs::trust_revoke,
+            update::update_status,
+            update::update_check,
+            update::update_install,
+            update::open_release_page,
         ])
         .run(tauri::generate_context!())
         .expect("error while running PortPilot");

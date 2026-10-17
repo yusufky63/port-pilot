@@ -16,6 +16,7 @@ import type {
   Snapshot,
   StopReport,
   TrustEntry,
+  UpdateInfo,
 } from "./types";
 
 export function isDesktop(): boolean {
@@ -69,6 +70,10 @@ export const api = {
   historyClear: () => call<void>("history_clear"),
   trusted: () => call<TrustEntry[]>("trust_list"),
   trustRevoke: (projectKey: string, run: string) => call<void>("trust_revoke", { projectKey, run }),
+  updateStatus: () => call<UpdateInfo | null>("update_status"),
+  updateCheck: () => call<UpdateInfo | null>("update_check"),
+  updateInstall: () => call<void>("update_install"),
+  openReleasePage: () => call<void>("open_release_page"),
 };
 
 export function onSnapshot(cb: (s: Snapshot) => void): Promise<UnlistenFn> {
@@ -81,6 +86,15 @@ export function onPaused(cb: (paused: boolean) => void): Promise<UnlistenFn> {
 
 export function onFocusListener(cb: (id: string) => void): Promise<UnlistenFn> {
   return listen<string>("focus-listener", (e) => cb(e.payload));
+}
+
+export function onUpdateAvailable(cb: (u: UpdateInfo) => void): Promise<UnlistenFn> {
+  return listen<UpdateInfo>("update-available", (e) => cb(e.payload));
+}
+
+/** The tray's update entry was chosen. */
+export function onShowUpdate(cb: () => void): Promise<UnlistenFn> {
+  return listen("show-update", () => cb());
 }
 
 /** Quit was asked for while runs are active; the payload is how many. */

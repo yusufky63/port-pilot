@@ -7,9 +7,14 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   release:
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -24,29 +29,31 @@ jobs:
       - run: pnpm check
       - run: cargo test --workspace --locked
 
+      # The signing key signs the installer for the in-app updater; the app only installs
+      # packages signed with it.
       - name: Build the installer and the CLI
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           pnpm tauri build --bundles nsis
           cargo build --release --locked -p portpilot-cli
 
-      - name: Package portable zip and checksums
+      - name: Package portable zip, update feed and checksums
         shell: pwsh
-        run: ./scripts/package-portable.ps1
+        run: ./scripts/package-portable.ps1 -Repo "${{ github.repository }}"
 
-      # Releases stay drafts: a maintainer reads the notes and publishes by hand.
-      - name: Create draft release
+      - name: Check the update feed
+        shell: pwsh
+        run: if (-not (Test-Path release/latest.json)) { throw "latest.json is missing; is the signing key set?" }
+
+      # Published right away and marked latest: installed copies find it through
+      # releases/latest/download/latest.json.
+      - name: Publish the release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = "${{ github.ref_name }}"
           $version = $tag.TrimStart('v')
-          # Release notes are the CHANGELOG section for this version.
-          $log = Get-Content CHANGELOG.md -Raw
-          $m = [regex]::Match($log, "(?ms)^## \[$([regex]::Escape($version))\][^\n]*\n(.*?)(?=^## \[|\z)")
-          $notes = if ($m.Success) { $m.Groups[1].Value.Trim() } else { "See CHANGELOG.md." }
-          $notes += "`n`n### Verify your download`nSHA-256 checksums are in SHA256SUMS.txt. Builds are not code-signed yet; see the README for the SmartScreen note."
-          Set-Content -Path release-notes.md -Value $notes -Encoding utf8
-          $ghArgs = @($tag, '--draft', '--title', "PortPilot $version", '--notes-file', 'release-notes.md')
-          if ($version -match '-') { $ghArgs += '--prerelease' }
-          gh release create @ghArgs (Get-ChildItem release -File | ForEach-Object FullName)
+          gh release create $tag --title "PortPilot $version" --notes-file release-notes.md --latest (Get-ChildItem release -File | ForEach-Object FullName)

@@ -54,7 +54,11 @@ Runs (start, exit code, how they ended) and TCP ports that opened or closed whil
 
 ## What does PortPilot send over the network?
 
-Nothing. There is no telemetry, crash reporting or update check. See [security.md](security.md#privacy).
+Only the update check: once a day (and when you press *Check now* in Settings) the app downloads `latest.json` of the newest GitHub release. Nothing about your computer, ports or projects is sent; GitHub sees an HTTPS request like any other. Turn it off under Settings > Updates. There is no telemetry or crash reporting. See [security.md](security.md#privacy).
+
+## How do updates work?
+
+Installed copies check GitHub once a day. When a newer version exists, a banner (and a tray entry) offers to install it. PortPilot downloads the installer, verifies its signature against the public key built into the app, stops its runs the way quitting does, and lets the installer replace it and start the new version. A package without a valid signature is refused. Portable copies cannot replace themselves in place, so they open the download page.
 
 ## Where are settings stored?
 

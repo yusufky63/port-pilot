@@ -20,6 +20,6 @@ Examples that are in scope:
 - CTRL+C or CTRL+BREAK reaching a process outside the target's own console group.
 - The WebView or a local page causing PortPilot to run a program, open an arbitrary path or stop a process without the user.
 - Secrets in command lines shown, printed or written while masking is on.
-- Any network traffic at all.
+- Any network traffic other than the update check, or an update that installs without a valid signature.
 
 The design and threat model are in [docs/security.md](docs/security.md).

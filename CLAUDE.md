@@ -14,7 +14,7 @@ Windows desktop app + CLI that explains local dev ports (owner process, parents,
 - Project folders are "exact" only when a runtime reports them (WSL `/proc`, Compose label) or PortPilot started the run there. Everything else is "inferred"; never guess from relative paths.
 - Nothing from a repository runs without the trust prompt; trust is the SHA-256 of the run's command, cwd and env. Recipes are read only on explicit user action, and ports enter commands only through `{ports.<service>}`.
 - Managed runs: suspended spawn into a Job Object with kill-on-close, `CREATE_NEW_PROCESS_GROUP`, graceful stop is CTRL+BREAK to the run's group, `TerminateJobObject` only on consent.
-- No network traffic, no persisted command lines (unless the user enables them for run history, masked), secrets masked by default. History keeps 14 days.
+- No network traffic except the signed-update check (Settings can turn it off), no persisted command lines (unless the user enables them for run history, masked), secrets masked by default. History keeps 14 days.
 - Git always runs with `--no-optional-locks`.
 
 ## Check matrix (all must pass)
@@ -28,4 +28,4 @@ cargo test --workspace
 
 Integration tests start `pp-fixture` servers and stop them; Git Bash passes "ignore CTRL+C" to children, which is why the stop flow follows CTRL+C with CTRL+BREAK. Tests that touch leases, trust or history set `PORTPILOT_DATA_DIR` or use `Store::in_memory()`, never the user's data folder.
 
-UI checks: `$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9333"; pnpm app:dev`, then `node scripts/screenshots.mjs` (light/dark, 1440 and 760 px). Screenshots show the real machine; keep them out of the repository.
+UI checks: `$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9333"; pnpm app:dev`, then `node scripts/screenshots.mjs` (light/dark, 1440 and 760 px). Screenshots show the real machine; keep them out of the repository. README pictures in `docs/screenshots` come from `scripts/demo-projects.mjs` plus `screenshots.mjs --demo` (run both from PowerShell; Git Bash mangles the Windows paths).

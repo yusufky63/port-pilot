@@ -14,6 +14,8 @@ use portpilot_engine::runs::RunManager;
 use portpilot_engine::store::{HistoryPrefs, Store};
 use serde::{Deserialize, Serialize};
 
+use crate::update::UpdateInfo;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
@@ -34,6 +36,8 @@ pub struct Settings {
     pub history: bool,
     /// Also record the (masked) command line of each run.
     pub history_command_lines: bool,
+    /// Ask the GitHub release feed once a day whether a newer version exists.
+    pub auto_update: bool,
 }
 
 impl Default for Settings {
@@ -49,6 +53,7 @@ impl Default for Settings {
             close_to_tray: true,
             history: true,
             history_command_lines: false,
+            auto_update: true,
         }
     }
 }
@@ -132,6 +137,8 @@ pub struct AppState {
     pub store_error: Option<String>,
     /// Runs this app started. Dropping it on exit closes their jobs.
     pub runs: RunManager,
+    /// A newer release found by the update check.
+    pub update: RwLock<Option<UpdateInfo>>,
 }
 
 impl AppState {
@@ -162,6 +169,7 @@ impl AppState {
             store,
             store_error,
             runs,
+            update: RwLock::new(None),
         }
     }
 

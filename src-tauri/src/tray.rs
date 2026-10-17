@@ -115,6 +115,20 @@ fn build_menu(app: &AppHandle, snapshot: Option<&Snapshot>) -> tauri::Result<Men
             menu.append(&PredefinedMenuItem::separator(app)?)?;
         }
     }
+    if let Some(u) = state.update.read().as_ref() {
+        let label = if lang == "tr" {
+            format!("{} sürümüne güncelle", u.version)
+        } else {
+            format!("Update to {}", u.version)
+        };
+        menu.append(&MenuItem::with_id(
+            app,
+            "update",
+            label,
+            true,
+            None::<&str>,
+        )?)?;
+    }
     menu.append(&MenuItem::with_id(app, "open", t.open, true, None::<&str>)?)?;
     menu.append(&CheckMenuItem::with_id(
         app,
@@ -147,6 +161,10 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             let id = event.id().as_ref().to_string();
             match id.as_str() {
                 "open" => show_main(app),
+                "update" => {
+                    show_main(app);
+                    let _ = app.emit("show-update", ());
+                }
                 "quit" => crate::request_quit(app),
                 "pause" => {
                     let state = app.state::<AppState>();
@@ -202,8 +220,9 @@ pub fn refresh(app: &AppHandle) {
     }
     let _ = tray.set_tooltip(Some(&tooltip));
 
+    let update = state.update.read().as_ref().map(|u| u.version.clone());
     let signature = format!(
-        "{lang}|{paused}|{}",
+        "{lang}|{paused}|{update:?}|{}",
         snapshot
             .as_ref()
             .map(|s| {

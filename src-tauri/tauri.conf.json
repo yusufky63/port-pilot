@@ -29,7 +29,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "publisher": "yusufky63",
     "copyright": "Copyright (c) 2026 yusufky63 and contributors",
     "category": "DeveloperTool",
@@ -38,15 +40,38 @@
     "homepage": "https://github.com/yusufky63/port-pilot",
     "license": "MIT OR Apache-2.0",
     "licenseFile": "../LICENSE-MIT",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
     "windows": {
-      "webviewInstallMode": { "type": "embedBootstrapper", "silent": true },
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      },
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["English", "Turkish"],
+        "languages": [
+          "English",
+          "Turkish"
+        ],
         "displayLanguageSelector": true,
         "installerIcon": "icons/icon.ico",
         "installerHooks": "windows/hooks.nsh"
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdEOThFRkQ4MEUyRTU3QUYKUldTdlZ5NE8yTytZZmN4cndTK2UreDVwVG95aVdRWHlFencyNitlK3pXRHhzeWMvTUhaU2t6RWMK",
+      "endpoints": [
+        "https://github.com/yusufky63/port-pilot/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

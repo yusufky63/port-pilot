@@ -6,6 +6,11 @@ PortPilot explains every local development port on Windows: which process listen
 
 > Status: `0.1.0-alpha.1`, the first milestone ("Explain every local dev port"). Windows 11 is the primary target; Windows 10 works on a best-effort basis.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/ports-dark.png">
+  <img alt="The Ports page: five listeners of three demo projects, two owners on port 3000, and the details of port 5173 with its process chain and project" src="docs/screenshots/ports-light.png">
+</picture>
+
 ## What it answers
 
 "Something is on port 3000" is the symptom. PortPilot answers the questions behind it:
@@ -16,6 +21,11 @@ PortPilot explains every local development port on Windows: which process listen
 - **Windows, WSL or Docker.** WSL's `wslrelay.exe` and Docker Desktop's `com.docker.backend.exe` hold host ports for something else. PortPilot folds them into the Linux process (read with `ss` inside running distros) or the container (read from the Docker Engine API) they forward to, and flags forwarders with nothing behind them, the classic "port is already allocated" case.
 - **Why a port is unusable.** A port inside one of Windows' reserved ranges (Hyper-V, WinNAT, WSL and Docker reserve blocks) cannot be bound even though nothing listens. `portctl who 3000` and the Doctor page say so and suggest free ports nearby.
 - **Conflicts.** Two owners on one port at different addresses (for example `127.0.0.1:3000` and `[::1]:3000`), where which one answers depends on IPv4 or IPv6.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/projects-dark.png">
+  <img alt="The Projects page: listeners grouped by repository, with the main checkout and a linked worktree of the shop repository each on its own port" src="docs/screenshots/projects-light.png">
+</picture>
 
 ## Stopping safely
 
@@ -51,9 +61,18 @@ env = { API_URL = "http://localhost:{ports.api}" }
 - **Port leases.** `{ports.web}` gets a port leased to this repository, worktree and service, so two worktrees of one repository never get the same port. When the leased port is taken, PortPilot offers to allocate the next free port for the worktree. Commands without a placeholder get no port.
 - **History.** A local timeline of runs, exits and port changes, kept for 14 days. No command lines unless you turn that on.
 
+<img alt="The trust prompt for a run in a linked worktree: folder, exact command and a new port lease for the worktree" src="docs/screenshots/run-dialog-light.png">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/runs-dark.png">
+  <img alt="The Runs page: the worktree's run with its output, recent projects and the port leases of each worktree" src="docs/screenshots/runs-light.png">
+</picture>
+
+The pictures show demo projects made by `scripts/demo-projects.mjs`.
+
 ## Privacy
 
-PortPilot sends nothing anywhere: no telemetry, no crash reports, no update checks, no account. Command lines are shown with tokens, passwords and keys masked. The local history keeps ports, process names and project folders for 14 days; it stores command lines only when you turn that on, and masks them. Environment variables of other processes are never read. Details in [docs/security.md](docs/security.md).
+No telemetry, no crash reports, no account. The only network request is the update check: once a day the app asks GitHub for the newest release's `latest.json`, sends nothing about the computer, and installs only packages signed with PortPilot's key. Settings can turn it off. Command lines are shown with tokens, passwords and keys masked. The local history keeps ports, process names and project folders for 14 days; it stores command lines only when you turn that on, and masks them. Environment variables of other processes are never read. Details in [docs/security.md](docs/security.md).
 
 ## The CLI
 
@@ -76,7 +95,7 @@ Exit codes are stable: 0 ok, 2 invalid arguments, 3 no listener, 4 ambiguous own
 
 ## Install
 
-PortPilot is not released yet. Pushing a `v*` tag runs the release workflow, which builds:
+Download the latest release from [GitHub Releases](https://github.com/yusufky63/port-pilot/releases/latest):
 
 | File | For |
 |---|---|
@@ -84,7 +103,9 @@ PortPilot is not released yet. Pushing a `v*` tag runs the release workflow, whi
 | `PortPilot_<version>_x64_portable.zip` | No installation. Settings stay in a `data` folder next to the exe. Includes `portctl.exe`. |
 | `SHA256SUMS.txt` | Checksums for every file. |
 
-Builds are not code-signed yet, so SmartScreen may warn. Both need the WebView2 runtime, which Windows 10 and 11 include.
+Installed copies update themselves: when a newer release is out, PortPilot shows it and installs it on one click, after stopping its runs. The update is accepted only with a valid signature. Portable copies point to the download page instead.
+
+The executables are not code-signed with a certificate yet, so SmartScreen may warn on the first start. Both builds need the WebView2 runtime, which Windows 10 and 11 include.
 
 ### Build from source
 

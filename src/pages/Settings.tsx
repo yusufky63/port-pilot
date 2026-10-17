@@ -21,6 +21,62 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
   );
 }
 
+function UpdatesCard({ settings, set }: { settings: Settings; set: (patch: Partial<Settings>) => void }) {
+  const { t } = useTranslation();
+  const info = useApp((s) => s.info);
+  const update = useApp((s) => s.update);
+  const setUpdate = useApp((s) => s.setUpdate);
+  const dismissUpdate = useApp((s) => s.dismissUpdate);
+  const [state, setState] = useState<"idle" | "checking" | "done">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  const check = () => {
+    setState("checking");
+    setError(null);
+    api
+      .updateCheck()
+      .then((u) => {
+        setUpdate(u);
+        // A manual check brings back a banner the user set aside.
+        dismissUpdate(null);
+      })
+      .catch((e) => setError(errorText(e)))
+      .finally(() => setState("done"));
+  };
+
+  return (
+    <Card>
+      <CardHeader
+        title={t("settings.updates")}
+        actions={
+          <Button size="sm" onClick={check} loading={state === "checking"}>
+            {state === "checking" ? t("settings.checking") : t("settings.checkNow")}
+          </Button>
+        }
+      />
+      <div className="divide-y divide-line">
+        <Row label={t("settings.autoUpdate")} hint={t("settings.autoUpdateHint")}>
+          <Switch checked={settings.autoUpdate} onChange={(autoUpdate) => set({ autoUpdate })} label={t("settings.autoUpdate")} />
+        </Row>
+        {(state === "done" || update) && (
+          <div className="flex items-center justify-between gap-4 px-4 py-3 text-[13px]">
+            <span className={error ? "text-danger-fg" : "text-ink-secondary"}>
+              {error
+                ? t("toast.failed", { error })
+                : update
+                  ? t("settings.updateFound", { version: update.version })
+                  : t("settings.upToDate", { version: info?.version ?? "" })}
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => void api.openReleasePage()}>
+              {t("settings.releasePage")}
+            </Button>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 function HistoryCard({ settings, set }: { settings: Settings; set: (patch: Partial<Settings>) => void }) {
   const { t } = useTranslation();
   const toast = useApp((s) => s.toast);
@@ -226,6 +282,8 @@ export function SettingsPage() {
               </Row>
             </div>
           </Card>
+
+          <UpdatesCard settings={settings} set={set} />
 
           <HistoryCard settings={settings} set={set} />
 

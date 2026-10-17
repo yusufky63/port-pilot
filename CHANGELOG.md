@@ -4,29 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-### Added
-
-- Managed runs: start a project's dev command from a `.portpilot.toml` recipe with `cmd.exe`, in its own process group, inside a Job Object that ends the run if its owner exits. The PID, creation time and exact folder are recorded, so the run's listeners are attributed exactly (`source: launched`). The app keeps stdout and stderr in memory for the new Runs page.
-- Trust prompt before a recipe command runs: the exact command, folder, environment and ports, with *Trust and run*, *Run once* and *Cancel*. Trusted commands are remembered by SHA-256 and listed in Settings, where they can be revoked. Nothing from a repository runs on its own.
-- Stopping a run sends CTRL+BREAK to its process group only; ending its job needs a second, explicit decision. Quitting the app with active runs asks first and stops them.
-- Port leases per repository, worktree and service. `{ports.<service>}` placeholders in a recipe get a leased port; a conflict offers the next free port for the worktree. Commands without a placeholder get no port.
-- History: a local SQLite timeline (`portpilot.db`) of runs, exits and TCP port changes, kept for 14 days, with a History page, a switch to turn it off and a button to clear it. Command lines only when turned on, masked.
-- `portctl run`, `portctl lease acquire|release|list` and `portctl history`; exit codes 9 (port conflict) and 11 (recipe missing or invalid).
-- `portctl` attributes listeners of runs started by the app or by another `portctl run` to their folder exactly.
-- `PORTPILOT_DATA_DIR` overrides the data folder (used by the tests).
-
-### Changed
-
-- The product is named PortPilot everywhere (window, tray, installer `PortPilot_<version>_x64-setup.exe`, portable zip `PortPilot_<version>_x64_portable.zip`).
-- The data folder now also holds `portpilot.db`; Settings calls it "Data folder".
-
-### Fixed
-
-- Windows Terminal and VS Code no longer inherit PortPilot's output handles, so their logs stay out of PortPilot's console. Without Windows Terminal, PowerShell and WSL terminals start through the shell in a console window of their own, with the folder as the working directory.
-
 ## [0.1.0-alpha.1] - 2026-10-17
 
-First milestone: "Explain every local dev port".
+First public release. The milestone was "Explain every local dev port"; managed runs, port leases, a local history and signed self-updates came with it.
 
 ### Added
 
@@ -43,3 +23,13 @@ First milestone: "Explain every local dev port".
 - `portctl` CLI: `list`, `who`, `tree`, `stop`, `find`, `doctor`, `project inspect`, `projects`; versioned JSON (`schemaVersion` 1) and stable exit codes.
 - Secret masking in command lines (flags, environment-style assignments, URL passwords, known token formats).
 - Portable mode (a `portable` file next to the exe), per-user NSIS installer.
+- Managed runs: start a project's dev command from a `.portpilot.toml` recipe with `cmd.exe`, in its own process group, inside a Job Object that ends the run if its owner exits. The PID, creation time and exact folder are recorded, so the run's listeners are attributed exactly (`source: launched`). The app keeps stdout and stderr in memory for the new Runs page.
+- Trust prompt before a recipe command runs: the exact command, folder, environment and ports, with *Trust and run*, *Run once* and *Cancel*. Trusted commands are remembered by SHA-256 and listed in Settings, where they can be revoked. Nothing from a repository runs on its own.
+- Stopping a run sends CTRL+BREAK to its process group only; ending its job needs a second, explicit decision. Quitting the app with active runs asks first and stops them.
+- Port leases per repository, worktree and service. `{ports.<service>}` placeholders in a recipe get a leased port; a conflict offers the next free port for the worktree. Commands without a placeholder get no port.
+- History: a local SQLite timeline (`portpilot.db`) of runs, exits and TCP port changes, kept for 14 days, with a History page, a switch to turn it off and a button to clear it. Command lines only when turned on, masked.
+- `portctl run`, `portctl lease acquire|release|list` and `portctl history`; exit codes 9 (port conflict) and 11 (recipe missing or invalid).
+- `portctl` attributes listeners of runs started by the app or by another `portctl run` to their folder exactly.
+- Signed self-updates for installed copies: the app checks the GitHub release feed once a day (Settings can turn it off), shows a banner and a tray entry for a newer version, and installs it on one click after stopping its runs. Packages are verified against the public key built into the app. Portable copies open the download page.
+- Releases are built, signed and published by GitHub Actions when a version tag is pushed.
+- `PORTPILOT_DATA_DIR` overrides the data folder.

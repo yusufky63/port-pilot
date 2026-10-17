@@ -232,6 +232,15 @@ export interface Settings {
   closeToTray: boolean;
   history: boolean;
   historyCommandLines: boolean;
+  autoUpdate: boolean;
+}
+
+export interface UpdateInfo {
+  version: string;
+  current: string;
+  notes: string | null;
+  date: string | null;
+  portable: boolean;
 }
 
 export interface AppInfo {

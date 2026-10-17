@@ -110,16 +110,28 @@ impl Drop for Project {
     }
 }
 
-fn free_base() -> u16 {
-    (43000..60000)
+/// Five consecutive ports nothing listens on, in the block of test `slot`. A loopback bind
+/// alone is not enough: Windows lets a program bind 127.0.0.1 while another one listens on
+/// 0.0.0.0 or [::] with the same port, and PortPilot rightly counts that listener as a user.
+fn free_base(slot: u16) -> u16 {
+    let used: std::collections::HashSet<u16> = portpilot_win::net::tcp_listeners()
+        .unwrap()
+        .iter()
+        .map(|s| s.port)
+        .collect();
+    // Each test searches its own block, so parallel tests never pick the same ports.
+    let start = 43000 + slot * 5000;
+    (start..start + 5000)
         .step_by(61)
-        .find(|b| (*b..*b + 5).all(|p| TcpListener::bind(("127.0.0.1", p)).is_ok()))
+        .find(|b| {
+            (*b..*b + 5).all(|p| !used.contains(&p) && TcpListener::bind(("127.0.0.1", p)).is_ok())
+        })
         .expect("free range")
 }
 
 #[test]
 fn lease_acquire_list_release() {
-    let base = free_base();
+    let base = free_base(0);
     let p = Project::new(
         "lease",
         &format!("[ports.web]\nrange = \"{base}-{}\"\n", base + 4),
@@ -147,7 +159,7 @@ fn lease_acquire_list_release() {
 
 #[test]
 fn lease_on_a_busy_port_exits_9_and_unknown_service_11() {
-    let base = free_base();
+    let base = free_base(1);
     let p = Project::new("conflict", &format!("[ports.web]\npreferred = {base}\n"));
     let (code, _) = p.run(&["lease", "acquire", "web"]);
     assert_eq!(code, 0);
@@ -162,7 +174,7 @@ fn lease_on_a_busy_port_exits_9_and_unknown_service_11() {
 
 #[test]
 fn run_needs_confirmation_and_passes_the_exit_code() {
-    let base = free_base();
+    let base = free_base(2);
     let p = Project::new(
         "run",
         &format!(

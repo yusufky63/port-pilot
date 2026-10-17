@@ -19,7 +19,7 @@ What is planned after 0.1.0-alpha.1, roughly in order. The reasons are in [docs/
 
 ## Next (0.1)
 
-- Code signing, then winget and Scoop packages.
+- Code signing with a certificate, then winget and Scoop packages.
 
 ## Later (0.2)
 

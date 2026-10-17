@@ -47,6 +47,7 @@ Stop requests from the UI name a listener id from the latest snapshot; the front
 | A run outliving PortPilot or holding ports after a crash | Every run is in a Job Object with kill-on-close; runs whose owner exited are closed in the history |
 | Command-line secrets on screen, in bug reports or JSON | Masked by default (`--token=****`, URL passwords, known token formats); `--no-redact` and a setting show them |
 | Environment secrets | Environment variables of other processes are never read |
+| A tampered update or feed | The installer must carry a minisign signature that matches the public key compiled into the app; the updater refuses anything else. The private key lives only in the repository's Actions secrets and the maintainer's vault. Updates come over HTTPS from GitHub. |
 | Local web page abusing the app | The app opens no network port; the UI talks to Rust through Tauri IPC only; the CSP blocks external connections |
 | WebView compromise | No shell, file system or opener permissions; commands accept listener ids, run ids and known folders only. A run starts only from a recipe file on disk, in a known folder, with the digest of that file's command |
 | Docker API misuse | Only `GET /containers/json`, `GET /version` and, after confirmation, `POST /containers/{id}/stop` with a validated hex id |
@@ -55,7 +56,7 @@ Stop requests from the UI name a listener id from the latest snapshot; the front
 
 ## Privacy
 
-- No telemetry, analytics, crash reporting or update checks. The app makes no internet requests at all.
+- No telemetry, analytics or crash reporting. The only internet request is the update check: the desktop app fetches `https://github.com/yusufky63/port-pilot/releases/latest/download/latest.json` 20 seconds after it starts and then once a day, plus whenever the user presses *Check now*. Nothing about the machine is sent. Settings > Updates turns the automatic check off. `portctl` makes no internet requests.
 - Two files are written, both in the data folder: `settings.json` (theme, language, refresh interval, toggles) and `portpilot.db`.
 - `portpilot.db` holds port leases (worktree folders, service names, ports), trusted run commands (as SHA-256 digests with the recipe folder and project name; not the command text), the runs PortPilot started, and the history: runs started and exited, and TCP ports that opened or closed, with process names, PIDs and project folders. History and finished runs are deleted after 14 days; Settings can turn history off and clear it.
 - Command lines are not stored by default. With "Include the command line of each run" on, a run's command is stored masked. Command lines of other processes are never stored.

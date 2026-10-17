@@ -6,7 +6,8 @@ import { RunDialog } from "./components/RunDialog";
 import { StopDialog } from "./components/StopDialog";
 import { Shell } from "./components/Shell";
 import { Banner, Button, Dialog, EmptyState } from "./components/ui";
-import { api, isDesktop, onFocusListener, onPaused, onQuitRequested, onSnapshot } from "./lib/api";
+import { UpdateBanner } from "./components/UpdateBanner";
+import { api, isDesktop, onFocusListener, onPaused, onQuitRequested, onShowUpdate, onSnapshot, onUpdateAvailable } from "./lib/api";
 import { useMediaQuery } from "./lib/hooks";
 import { DoctorPage } from "./pages/Doctor";
 import { HistoryPage } from "./pages/History";
@@ -114,6 +115,8 @@ export function App() {
       onPaused((p) => useApp.getState().setPaused(p)),
       onFocusListener((id) => useApp.getState().focusListener(id)),
       onQuitRequested((n) => useApp.getState().setQuitRequested(n)),
+      onUpdateAvailable((u) => useApp.getState().setUpdate(u)),
+      onShowUpdate(() => useApp.getState().dismissUpdate(null)),
     ];
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !document.querySelector("[role=dialog]")) useApp.getState().select(null);
@@ -142,6 +145,7 @@ export function App() {
           </Banner>
         </div>
       )}
+      <UpdateBanner />
       <Page />
       <Stop />
       <Run />
