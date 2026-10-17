@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- `SHA256SUMS.txt` in a release uses LF line endings, so `sha256sum -c SHA256SUMS.txt` works in Git Bash, WSL and Linux.
+
 ## [0.1.0-alpha.1] - 2026-10-17
 
 First public release. The milestone was "Explain every local dev port"; managed runs, port leases, a local history and signed self-updates came with it.

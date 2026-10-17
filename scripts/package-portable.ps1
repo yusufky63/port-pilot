@@ -64,5 +64,6 @@ if ($sig) {
 $sums = Get-ChildItem -LiteralPath $out -File | Sort-Object Name | ForEach-Object {
   "{0}  {1}" -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
 }
-Set-Content -LiteralPath (Join-Path $out 'SHA256SUMS.txt') -Value $sums -Encoding ascii
+# LF endings, so `sha256sum -c SHA256SUMS.txt` works in Git Bash, WSL and Linux too.
+[System.IO.File]::WriteAllText((Join-Path $out 'SHA256SUMS.txt'), (($sums -join "`n") + "`n"), $utf8)
 Get-ChildItem -LiteralPath $out | Format-Table Name, Length -AutoSize
