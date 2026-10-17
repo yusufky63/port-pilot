@@ -1,0 +1,64 @@
+name: Bug report
+description: Something does not work as described.
+labels: [bug, needs-repro]
+body:
+  - type: markdown
+    attributes:
+      value: If Port Pilot stopped or showed the wrong process, say so in the title. Those reports are handled first. Remove paths, user names and secrets from anything you paste; command lines can contain tokens.
+  - type: input
+    id: version
+    attributes:
+      label: Port Pilot version
+      description: Settings > About, or `portctl --version`.
+      placeholder: 0.1.0-alpha.1
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version and build
+      placeholder: Windows 11 24H2 (26100.2033)
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where did it happen?
+      options:
+        - Desktop app
+        - Tray
+        - portctl CLI
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime of the listener
+      options:
+        - Windows
+        - WSL
+        - Docker Desktop
+        - Not sure
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected and what you saw instead. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `pnpm dev` in a project
+        2. Open Port Pilot
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: portctl output
+      description: "`portctl who <port> --json` for the port in question. Command lines are redacted by default; check again before you paste."
+      render: json

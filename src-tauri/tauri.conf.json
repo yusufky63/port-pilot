@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Port Pilot",
+  "mainBinaryName": "port-pilot",
+  "version": "../package.json",
+  "identifier": "io.github.yusufky63.portpilot",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1430",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Port Pilot",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 760,
+        "minHeight": 540,
+        "center": true,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "yusufky63",
+    "copyright": "Copyright (c) 2026 yusufky63 and contributors",
+    "category": "DeveloperTool",
+    "shortDescription": "Explains and controls local development ports on Windows",
+    "longDescription": "Port Pilot shows which process, project, Git worktree, WSL distro or Docker container owns every local port, and stops it safely: identity checked, graceful first, force only on request.",
+    "homepage": "https://github.com/yusufky63/port-pilot",
+    "license": "MIT OR Apache-2.0",
+    "licenseFile": "../LICENSE-MIT",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "windows": {
+      "webviewInstallMode": { "type": "embedBootstrapper", "silent": true },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English", "Turkish"],
+        "displayLanguageSelector": true,
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "windows/hooks.nsh"
+      }
+    }
+  }
+}

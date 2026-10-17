@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest something Port Pilot should explain or control.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What were you trying to find out or do, and what got in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Windows discovery
+        - WSL
+        - Docker
+        - Git and worktrees
+        - Stopping processes
+        - Desktop app and tray
+        - CLI
+        - Packaging
