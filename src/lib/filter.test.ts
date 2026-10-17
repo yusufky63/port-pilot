@@ -20,6 +20,7 @@ function listener(over: Partial<Listener> & { port: number }): Listener {
     stop: { target: null, blocked: null },
     conflict: false,
     notes: [],
+    managed: null,
     ...over,
   };
 }

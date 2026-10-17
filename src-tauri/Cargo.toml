@@ -1,6 +1,6 @@
 [package]
 name = "port-pilot"
-description = "Port Pilot: explains and controls local development ports on Windows"
+description = "PortPilot: explains and controls local development ports on Windows"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

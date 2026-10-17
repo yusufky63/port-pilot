@@ -54,12 +54,13 @@ impl Runtime {
     }
 }
 
-/// How sure Port Pilot is about a project folder. There is no public Windows API for another
+/// How sure PortPilot is about a project folder. There is no public Windows API for another
 /// process's working directory, so most Windows attributions are inferred and say so.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Confidence {
-    /// Reported by the runtime itself (the Linux kernel, a Compose label).
+    /// Reported by the runtime itself (the Linux kernel, a Compose label) or recorded when Port
+    /// Pilot started the process.
     Exact,
     /// Derived from a path in the command line or the executable's location.
     Inferred,
@@ -76,6 +77,8 @@ pub enum AttributionSource {
     CommandLine,
     /// The folder of the executable, for example a virtualenv or `target\debug`.
     ExecutablePath,
+    /// The working directory PortPilot started a managed run in.
+    Launched,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -236,7 +239,7 @@ pub enum StopTarget {
     Docker { container_id: String },
 }
 
-/// Why a listener cannot be stopped from Port Pilot.
+/// Why a listener cannot be stopped from PortPilot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum StopBlock {
@@ -250,7 +253,7 @@ pub enum StopBlock {
     AccessDenied,
     /// The creation time could not be read, so the instance cannot be verified.
     IdentityUnknown,
-    /// Port Pilot itself, or the process that runs it.
+    /// PortPilot itself, or the process that runs it.
     SelfProcess,
 }
 
@@ -274,6 +277,15 @@ pub enum Note {
     ParentExited,
     /// Another owner listens on the same port at a different address.
     SharedPort,
+}
+
+/// The managed run a listener belongs to: PortPilot started its process tree.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManagedRef {
+    pub run_id: String,
+    /// The run's name in the recipe (`[run.dev]` is `dev`).
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -304,6 +316,9 @@ pub struct Listener {
     pub stop: StopInfo,
     pub conflict: bool,
     pub notes: Vec<Note>,
+    /// Set when the owner belongs to a run PortPilot started.
+    #[serde(default)]
+    pub managed: Option<ManagedRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -380,7 +395,7 @@ pub enum StopOutcome {
     Stopped,
     /// The process was terminated after the grace period.
     Forced,
-    /// The process exited before Port Pilot acted.
+    /// The process exited before PortPilot acted.
     AlreadyExited,
     /// The PID now belongs to another process; nothing was done.
     IdentityChanged,
@@ -389,7 +404,7 @@ pub enum StopOutcome {
     /// No safe graceful channel exists and force was not allowed.
     GracefulUnavailable,
     AccessDenied,
-    /// The target class may not be stopped (system, service, relay, Port Pilot itself).
+    /// The target class may not be stopped (system, service, relay, PortPilot itself).
     Refused,
     /// WSL or Docker could not be reached.
     RuntimeUnavailable,
@@ -406,6 +421,8 @@ pub enum GracefulChannel {
     ConsoleCtrlC,
     /// CTRL+BREAK on that console, after CTRL+C was ignored.
     ConsoleCtrlBreak,
+    /// CTRL+BREAK to a managed run's own process group.
+    GroupCtrlBreak,
     /// SIGTERM inside WSL.
     Sigterm,
     /// `POST /containers/{id}/stop`.

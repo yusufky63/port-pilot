@@ -47,6 +47,6 @@ jobs:
           $notes = if ($m.Success) { $m.Groups[1].Value.Trim() } else { "See CHANGELOG.md." }
           $notes += "`n`n### Verify your download`nSHA-256 checksums are in SHA256SUMS.txt. Builds are not code-signed yet; see the README for the SmartScreen note."
           Set-Content -Path release-notes.md -Value $notes -Encoding utf8
-          $ghArgs = @($tag, '--draft', '--title', "Port Pilot $version", '--notes-file', 'release-notes.md')
+          $ghArgs = @($tag, '--draft', '--title', "PortPilot $version", '--notes-file', 'release-notes.md')
           if ($version -match '-') { $ghArgs += '--prerelease' }
           gh release create @ghArgs (Get-ChildItem release -File | ForEach-Object FullName)

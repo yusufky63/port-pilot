@@ -14,13 +14,13 @@ $stage = Join-Path $out 'portable'
 if (Test-Path -LiteralPath $out) { Remove-Item -LiteralPath $out -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
 
-Copy-Item -LiteralPath $exe -Destination (Join-Path $stage 'Port Pilot.exe')
+Copy-Item -LiteralPath $exe -Destination (Join-Path $stage 'PortPilot.exe')
 Copy-Item -LiteralPath $cli -Destination (Join-Path $stage 'portctl.exe')
-Set-Content -LiteralPath (Join-Path $stage 'portable') -Encoding ascii -Value 'Port Pilot keeps its settings in the data folder next to the exe while this file exists.'
+Set-Content -LiteralPath (Join-Path $stage 'portable') -Encoding ascii -Value 'PortPilot keeps its settings in the data folder next to the exe while this file exists.'
 Copy-Item -LiteralPath (Join-Path $root 'LICENSE-MIT') -Destination (Join-Path $stage 'LICENSE-MIT.txt')
 Copy-Item -LiteralPath (Join-Path $root 'LICENSE-APACHE') -Destination (Join-Path $stage 'LICENSE-APACHE.txt')
 
-$zip = Join-Path $out "Port-Pilot_${version}_x64_portable.zip"
+$zip = Join-Path $out "PortPilot_${version}_x64_portable.zip"
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
 Remove-Item -LiteralPath $stage -Recurse -Force
 

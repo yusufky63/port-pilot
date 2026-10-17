@@ -73,3 +73,122 @@ fn invalid_arguments_exit_2() {
     assert_eq!(run(&["find", "--range", "9-1"]).0, 2);
     assert_eq!(run(&["stop"]).0, 2);
 }
+
+/// A project folder with a recipe and a data folder of its own, so the tests never touch the
+/// user's leases or history.
+struct Project {
+    root: std::path::PathBuf,
+}
+
+impl Project {
+    fn new(name: &str, recipe: &str) -> Project {
+        let root = std::env::temp_dir().join(format!("pp-cli-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("app").join(".git")).unwrap();
+        std::fs::write(root.join("app").join(".portpilot.toml"), recipe).unwrap();
+        Project { root }
+    }
+
+    fn run(&self, args: &[&str]) -> (i32, String) {
+        let out = Command::new(PORTCTL)
+            .args(args)
+            .current_dir(self.root.join("app"))
+            .env("PORTPILOT_DATA_DIR", self.root.join("data"))
+            .stdin(std::process::Stdio::null())
+            .output()
+            .expect("run portctl");
+        (
+            out.status.code().unwrap_or(-1),
+            String::from_utf8_lossy(&out.stdout).into_owned(),
+        )
+    }
+}
+
+impl Drop for Project {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.root);
+    }
+}
+
+fn free_base() -> u16 {
+    (43000..60000)
+        .step_by(61)
+        .find(|b| (*b..*b + 5).all(|p| TcpListener::bind(("127.0.0.1", p)).is_ok()))
+        .expect("free range")
+}
+
+#[test]
+fn lease_acquire_list_release() {
+    let base = free_base();
+    let p = Project::new(
+        "lease",
+        &format!("[ports.web]\nrange = \"{base}-{}\"\n", base + 4),
+    );
+    let (code, out) = p.run(&["lease", "acquire", "web"]);
+    assert_eq!(code, 0);
+    assert_eq!(out.trim(), base.to_string());
+    // Stable on a second call, moved with --next.
+    assert_eq!(
+        p.run(&["lease", "acquire", "web"]).1.trim(),
+        base.to_string()
+    );
+    let (code, out) = p.run(&["lease", "acquire", "web", "--next", "--json"]);
+    assert_eq!(code, 0);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["schemaVersion"], 1);
+    assert_eq!(v["port"], base + 1);
+    assert_eq!(v["service"], "web");
+    let (_, out) = p.run(&["lease", "list", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["leases"].as_array().unwrap().len(), 1);
+    assert_eq!(p.run(&["lease", "release", "web"]).0, 0);
+    assert_eq!(p.run(&["lease", "release", "web"]).0, 3);
+}
+
+#[test]
+fn lease_on_a_busy_port_exits_9_and_unknown_service_11() {
+    let base = free_base();
+    let p = Project::new("conflict", &format!("[ports.web]\npreferred = {base}\n"));
+    let (code, _) = p.run(&["lease", "acquire", "web"]);
+    assert_eq!(code, 0);
+    let busy = TcpListener::bind(("127.0.0.1", base)).unwrap();
+    let (code, out) = p.run(&["lease", "acquire", "web"]);
+    assert_eq!(code, 9, "the kept lease is in use by another program");
+    assert_eq!(out.trim(), base.to_string());
+    drop(busy);
+    assert_eq!(p.run(&["lease", "acquire", "api"]).0, 11);
+    assert_eq!(p.run(&["lease", "acquire", "api", "--range", "9-1"]).0, 2);
+}
+
+#[test]
+fn run_needs_confirmation_and_passes_the_exit_code() {
+    let base = free_base();
+    let p = Project::new(
+        "run",
+        &format!(
+            "[ports.web]\npreferred = {base}\n\n[run.dev]\ncommand = \"echo port {{ports.web}}& exit 4\"\n"
+        ),
+    );
+    // Nobody can answer the trust prompt, so nothing runs.
+    let (code, out) = p.run(&["run", "dev"]);
+    assert_eq!(code, 2);
+    assert!(out.contains(&format!("echo port {base}& exit 4")), "{out}");
+    let (code, out) = p.run(&["run", "--yes"]);
+    assert_eq!(code, 4, "{out}");
+    assert!(out.contains(&format!("port {base}")), "{out}");
+    let (_, out) = p.run(&["history", "--kind", "runs", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let events = v["events"].as_array().unwrap();
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[0]["kind"], "runExited");
+    assert_eq!(events[0]["exitCode"], 4);
+    assert!(events.iter().all(|e| e["command"].is_null()));
+    assert_eq!(p.run(&["run", "nope", "--yes"]).0, 11);
+}
+
+#[test]
+fn run_without_recipe_exits_11() {
+    let p = Project::new("none", "");
+    std::fs::remove_file(p.root.join("app").join(".portpilot.toml")).unwrap();
+    assert_eq!(p.run(&["run", "--yes"]).0, 11);
+}

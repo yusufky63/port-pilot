@@ -1,12 +1,11 @@
 //! Opening things for the user: a listener's URL, a project folder, a terminal or VS Code.
-//! Callers pass only values Port Pilot found itself; nothing here runs a command line taken
+//! Callers pass only values PortPilot found itself; nothing here runs a command line taken
 //! from the UI.
 
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
-const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
 const DETACHED_PROCESS: u32 = 0x0000_0008;
 
 /// `\\wsl.localhost\Ubuntu\home\a\shop` → (`Ubuntu`, `/home/a/shop`).
@@ -45,35 +44,53 @@ pub fn open_folder(path: &str) -> Result<(), String> {
     portpilot_win::shell::open(path)
 }
 
+/// A GUI program started on its own: no console, and none of PortPilot's standard handles, so
+/// its logs never mix into PortPilot's output.
+fn detached(program: &Path) -> Command {
+    let mut cmd = Command::new(program);
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(DETACHED_PROCESS);
+    cmd
+}
+
+fn valid_distro(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+}
+
 pub fn open_terminal(path: &str) -> Result<(), String> {
     if let Some((distro, linux)) = split_wsl_unc(path) {
-        let spawned = match windows_terminal() {
-            Some(wt) => Command::new(wt)
+        if !valid_distro(&distro) || linux.contains('"') {
+            return Err(format!("{path} cannot be opened in a terminal"));
+        }
+        if let Some(wt) = windows_terminal()
+            && detached(&wt)
                 .args(["wsl.exe", "-d", &distro, "--cd", &linux])
-                .spawn(),
-            None => Command::new("wsl.exe")
-                .args(["-d", &distro, "--cd", &linux])
-                .creation_flags(CREATE_NEW_CONSOLE)
-                .spawn(),
-        };
-        return spawned.map(drop).map_err(|e| e.to_string());
+                .spawn()
+                .is_ok()
+        {
+            return Ok(());
+        }
+        return portpilot_win::shell::start_in(
+            "wsl.exe",
+            &format!("-d {distro} --cd \"{linux}\""),
+            None,
+        );
     }
     if !Path::new(path).is_dir() {
         return Err(format!("{path} does not exist"));
     }
     if let Some(wt) = windows_terminal()
-        && Command::new(wt).arg("-d").arg(path).spawn().is_ok()
+        && detached(&wt).arg("-d").arg(path).spawn().is_ok()
     {
         return Ok(());
     }
-    // The folder is passed as the working directory, so nothing is quoted into a command line.
-    Command::new("powershell.exe")
-        .args(["-NoExit", "-NoLogo"])
-        .current_dir(path)
-        .creation_flags(CREATE_NEW_CONSOLE)
-        .spawn()
-        .map(drop)
-        .map_err(|e| e.to_string())
+    // The folder is the working directory, so nothing is quoted into a command line.
+    portpilot_win::shell::start_in("powershell.exe", "-NoExit -NoLogo", Some(path))
 }
 
 fn vscode() -> Option<PathBuf> {
@@ -95,9 +112,8 @@ pub fn has_vscode() -> bool {
 
 pub fn open_editor(path: &str) -> Result<(), String> {
     let code = vscode().ok_or("VS Code was not found")?;
-    Command::new(code)
+    detached(&code)
         .arg(path)
-        .creation_flags(DETACHED_PROCESS)
         .spawn()
         .map(drop)
         .map_err(|e| e.to_string())

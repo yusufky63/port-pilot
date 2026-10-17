@@ -1,4 +1,4 @@
-//! Docker Desktop through the Docker Engine API on its named pipe. Port Pilot reads container
+//! Docker Desktop through the Docker Engine API on its named pipe. PortPilot reads container
 //! port mappings and Compose labels, and stops a container only when the user confirms it.
 //! It never kills Docker's host-side proxy process.
 

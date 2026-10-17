@@ -1,17 +1,20 @@
 import { AlertTriangle, MonitorX } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DetailPanel } from "./components/DetailPanel";
+import { RunDialog } from "./components/RunDialog";
 import { StopDialog } from "./components/StopDialog";
 import { Shell } from "./components/Shell";
-import { Banner, EmptyState } from "./components/ui";
-import { isDesktop, onFocusListener, onPaused, onSnapshot } from "./lib/api";
+import { Banner, Button, Dialog, EmptyState } from "./components/ui";
+import { api, isDesktop, onFocusListener, onPaused, onQuitRequested, onSnapshot } from "./lib/api";
 import { useMediaQuery } from "./lib/hooks";
 import { DoctorPage } from "./pages/Doctor";
+import { HistoryPage } from "./pages/History";
 import { PortsPage } from "./pages/Ports";
 import { ProjectsPage } from "./pages/Projects";
+import { RunsPage } from "./pages/Runs";
 import { SettingsPage } from "./pages/Settings";
-import { useApp } from "./store/app";
+import { errorText, useApp } from "./store/app";
 
 function Page() {
   const page = useApp((s) => s.page);
@@ -20,6 +23,10 @@ function Page() {
       return <PortsPage />;
     case "projects":
       return <ProjectsPage />;
+    case "runs":
+      return <RunsPage />;
+    case "history":
+      return <HistoryPage />;
     case "doctor":
       return <DoctorPage />;
     case "settings":
@@ -41,10 +48,56 @@ function Detail() {
 
 function Stop() {
   const stopping = useApp((s) => s.stopping);
+  const stoppingRun = useApp((s) => s.stoppingRun);
   const closeStop = useApp((s) => s.closeStop);
+  // Keyed so a new dialog never shows the previous result.
+  if (stoppingRun) return <StopDialog key={stoppingRun.id} run={stoppingRun} onClose={closeStop} />;
   if (!stopping) return null;
-  // Keyed by listener so a new dialog never shows the previous result.
   return <StopDialog key={stopping.id} listener={stopping} onClose={closeStop} />;
+}
+
+function Run() {
+  const folder = useApp((s) => s.runFolder);
+  const closeRun = useApp((s) => s.closeRun);
+  if (!folder) return null;
+  return <RunDialog key={folder} folder={folder} onClose={closeRun} />;
+}
+
+/** Quitting with active runs: they are stopped first, and ended after the grace period. */
+function Quit() {
+  const { t } = useTranslation();
+  const active = useApp((s) => s.quitRequested);
+  const grace = useApp((s) => s.settings?.graceSeconds ?? 5);
+  const close = useApp((s) => s.setQuitRequested);
+  const toast = useApp((s) => s.toast);
+  const [busy, setBusy] = useState(false);
+  if (active === null) return null;
+  const quit = () => {
+    setBusy(true);
+    api.quit().catch((e) => {
+      setBusy(false);
+      toast("danger", t("toast.failed", { error: errorText(e) }));
+    });
+  };
+  return (
+    <Dialog
+      open
+      onClose={busy ? () => undefined : () => close(null)}
+      title={t("quit.title")}
+      footer={
+        <>
+          <Button variant="ghost" disabled={busy} onClick={() => close(null)} data-autofocus>
+            {t("common.cancel")}
+          </Button>
+          <Button variant="dangerSolid" loading={busy} onClick={quit}>
+            {busy ? t("quit.stopping") : t("quit.confirm")}
+          </Button>
+        </>
+      }
+    >
+      <p className="text-[14px] text-ink-secondary">{t("quit.body", { count: active, seconds: grace })}</p>
+    </Dialog>
+  );
 }
 
 export function App() {
@@ -60,6 +113,7 @@ export function App() {
       onSnapshot((s) => useApp.getState().setSnapshot(s)),
       onPaused((p) => useApp.getState().setPaused(p)),
       onFocusListener((id) => useApp.getState().focusListener(id)),
+      onQuitRequested((n) => useApp.getState().setQuitRequested(n)),
     ];
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !document.querySelector("[role=dialog]")) useApp.getState().select(null);
@@ -90,6 +144,8 @@ export function App() {
       )}
       <Page />
       <Stop />
+      <Run />
+      <Quit />
     </Shell>
   );
 }

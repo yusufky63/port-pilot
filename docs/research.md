@@ -15,7 +15,7 @@ Representative reports:
 
 ## Prior art
 
-| Project | What it does | What Port Pilot takes from it |
+| Project | What it does | What PortPilot takes from it |
 |---|---|---|
 | [m4cd4r4/PortPilot](https://github.com/m4cd4r4/PortPilot) | Electron port and app manager with Claude and VS Code integration, worktree runs | Agent awareness, "reuse the running server", free port per worktree |
 | [sriinnu/portpilot](https://github.com/sriinnu/portpilot) | macOS menu bar app and CLI | Tray-first access |
@@ -26,7 +26,7 @@ Representative reports:
 | [System Informer](https://github.com/winsiderss/systeminformer) | Deep process and network inspection | The quality bar for Windows internals, not the scope |
 | [mgesmundo/port-manager](https://github.com/mgesmundo/port-manager) | Port range allocation library | Lease model for the next milestone |
 
-Several projects already use the name "PortPilot"; the final product name is still open.
+Several of these projects are also called PortPilot. This one keeps the name and stands apart by being Windows-first and by explaining ownership before it offers to stop anything.
 
 ## Decisions
 

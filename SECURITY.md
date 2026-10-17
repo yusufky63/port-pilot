@@ -1,6 +1,6 @@
 # Security policy
 
-Port Pilot can end processes on a developer's machine, so security reports get priority.
+PortPilot can end processes on a developer's machine, so security reports get priority.
 
 ## Supported versions
 
@@ -16,9 +16,9 @@ You can expect a first answer within a week. Fixed issues are credited in the re
 
 Examples that are in scope:
 
-- Any way to make Port Pilot signal or terminate a process other than the one the user confirmed (PID reuse, a crafted command line, a race between scan and action).
+- Any way to make PortPilot signal or terminate a process other than the one the user confirmed (PID reuse, a crafted command line, a race between scan and action).
 - CTRL+C or CTRL+BREAK reaching a process outside the target's own console group.
-- The WebView or a local page causing Port Pilot to run a program, open an arbitrary path or stop a process without the user.
+- The WebView or a local page causing PortPilot to run a program, open an arbitrary path or stop a process without the user.
 - Secrets in command lines shown, printed or written while masking is on.
 - Any network traffic at all.
 

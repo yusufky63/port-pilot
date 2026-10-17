@@ -38,6 +38,8 @@ export function DetailPanel({ listener, overlay, onClose }: { listener: Listener
   const maskSecrets = useApp((s) => s.settings?.maskSecrets ?? true);
   const toast = useApp((s) => s.toast);
   const openStop = useApp((s) => s.openStop);
+  const focusRun = useApp((s) => s.focusRun);
+  const hasRun = useApp((s) => s.runs.some((r) => r.id === listener.managed?.runId));
   const l = listener;
   const p = l.process;
   const project = l.project;
@@ -198,6 +200,18 @@ export function DetailPanel({ listener, overlay, onClose }: { listener: Listener
         )}
 
         <Section title={t("detail.project")}>
+          {l.managed && (
+            <Field label={t("detail.run")}>
+              <span className="inline-flex flex-wrap items-center gap-2">
+                <span>{t("detail.managed", { name: l.managed.name })}</span>
+                {hasRun && (
+                  <button type="button" onClick={() => focusRun(l.managed?.runId ?? "")} className="text-primary hover:underline">
+                    {t("detail.showRun")}
+                  </button>
+                )}
+              </span>
+            </Field>
+          )}
           {project ? (
             <>
               <Field label={t("detail.project")}>

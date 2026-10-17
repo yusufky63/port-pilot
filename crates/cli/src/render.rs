@@ -104,9 +104,9 @@ pub fn block_reason(b: StopBlock) -> &'static str {
         }
         StopBlock::AccessDenied => "it belongs to another user or runs elevated",
         StopBlock::IdentityUnknown => {
-            "its start time cannot be read, so Port Pilot cannot prove it is the same process"
+            "its start time cannot be read, so PortPilot cannot prove it is the same process"
         }
-        StopBlock::SelfProcess => "it is Port Pilot or the program running it",
+        StopBlock::SelfProcess => "it is PortPilot or the program running it",
     }
 }
 
@@ -209,6 +209,7 @@ fn confidence_label(c: Confidence, s: AttributionSource) -> &'static str {
     match (c, s) {
         (Confidence::Exact, AttributionSource::ProcCwd) => "exact, working directory",
         (Confidence::Exact, AttributionSource::ComposeLabel) => "exact, Compose label",
+        (Confidence::Exact, AttributionSource::Launched) => "exact, started by PortPilot",
         (_, AttributionSource::CommandLine) => "inferred from the command line",
         (_, AttributionSource::ExecutablePath) => "inferred from the executable's folder",
         _ => "inferred",
@@ -260,6 +261,9 @@ pub fn listener_detail(l: &Listener) -> String {
                 launcher.pid
             ),
         );
+    }
+    if let Some(m) = &l.managed {
+        push("Run", format!("{} (managed by PortPilot)", m.name));
     }
     push("Runtime", runtime_label(l));
     if let Some(relay) = &l.relay {
@@ -445,6 +449,7 @@ pub fn stop_report(r: &StopReport) -> String {
         GracefulChannel::CloseWindow => "closed its window",
         GracefulChannel::ConsoleCtrlC => "sent CTRL+C",
         GracefulChannel::ConsoleCtrlBreak => "sent CTRL+C, then CTRL+BREAK",
+        GracefulChannel::GroupCtrlBreak => "sent CTRL+BREAK to the run's process group",
         GracefulChannel::Sigterm => "sent SIGTERM",
         GracefulChannel::DockerStop => "asked Docker to stop the container",
     });
@@ -464,7 +469,7 @@ pub fn stop_report(r: &StopReport) -> String {
         }
         StopOutcome::AccessDenied => "Not stopped: access denied.".to_string(),
         StopOutcome::Refused => {
-            "Not stopped: Port Pilot does not stop this kind of process.".to_string()
+            "Not stopped: PortPilot does not stop this kind of process.".to_string()
         }
         StopOutcome::RuntimeUnavailable => {
             "Not stopped: WSL or Docker could not be reached.".to_string()
@@ -500,7 +505,7 @@ pub fn environment(e: &Environment) -> String {
         e.os.clone().unwrap_or_else(|| "unknown".into())
     ));
     if e.windows10 {
-        out.push_str("  Windows 10 left general support on 2025-10-14; Port Pilot works there on a best-effort basis.\n");
+        out.push_str("  Windows 10 left general support on 2025-10-14; PortPilot works there on a best-effort basis.\n");
     }
     out.push_str(&format!(
         "User: {}{}\n",

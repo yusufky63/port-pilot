@@ -1,4 +1,4 @@
-//! Parsers for the Git commands Port Pilot runs. Git's own CLI is the source of truth for
+//! Parsers for the Git commands PortPilot runs. Git's own CLI is the source of truth for
 //! worktree layout; nothing here reads `.git` directly.
 //!
 //! Commands, all with `-C <dir>`:

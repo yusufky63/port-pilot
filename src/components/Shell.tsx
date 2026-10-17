@@ -1,4 +1,4 @@
-import { FolderGit2, Network, Pause, Play, Settings as SettingsIcon, ShieldCheck, Stethoscope, User, X, type LucideIcon } from "lucide-react";
+import { CirclePlay, FolderGit2, History, Network, Pause, Play, Settings as SettingsIcon, ShieldCheck, Stethoscope, User, X, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { cx } from "../lib/cx";
@@ -14,6 +14,8 @@ interface NavItem {
 const ITEMS: NavItem[] = [
   { id: "ports", icon: Network },
   { id: "projects", icon: FolderGit2 },
+  { id: "runs", icon: CirclePlay },
+  { id: "history", icon: History },
   { id: "doctor", icon: Stethoscope },
 ];
 
@@ -27,7 +29,7 @@ export function Logo({ size = 26 }: { size?: number }) {
   );
 }
 
-function NavButton({ item, active, onClick, badge }: { item: NavItem; active: boolean; onClick: () => void; badge?: number }) {
+function NavButton({ item, active, onClick, badge, badgeTone = "danger" }: { item: NavItem; active: boolean; onClick: () => void; badge?: number; badgeTone?: "danger" | "primary" }) {
   const { t } = useTranslation();
   const Icon = item.icon;
   return (
@@ -42,7 +44,7 @@ function NavButton({ item, active, onClick, badge }: { item: NavItem; active: bo
     >
       <Icon size={17} strokeWidth={1.75} className={active ? "text-primary" : ""} aria-hidden />
       <span className="flex-1 truncate">{t(`nav.${item.id}`)}</span>
-      {badge ? <span className="num rounded-sm bg-danger-soft px-1.5 font-mono text-[11px] text-danger-fg">{badge}</span> : null}
+      {badge ? <span className={cx("num rounded-sm px-1.5 font-mono text-[11px]", badgeTone === "danger" ? "bg-danger-soft text-danger-fg" : "bg-primary-soft text-primary")}>{badge}</span> : null}
     </button>
   );
 }
@@ -86,6 +88,7 @@ function Sidebar() {
   const page = useApp((s) => s.page);
   const go = useApp((s) => s.go);
   const conflicts = useApp((s) => s.snapshot?.conflicts.length ?? 0);
+  const activeRuns = useApp((s) => s.runs.filter((r) => r.state !== "exited").length);
   return (
     <aside className="flex h-full w-[216px] shrink-0 flex-col border-r border-line bg-surface">
       <div className="flex h-14 items-center gap-2.5 px-4">
@@ -97,7 +100,14 @@ function Sidebar() {
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-3 pt-2" aria-label={t("nav.main")}>
         {ITEMS.map((item) => (
-          <NavButton key={item.id} item={item} active={page === item.id} onClick={() => go(item.id)} badge={item.id === "ports" ? conflicts : undefined} />
+          <NavButton
+            key={item.id}
+            item={item}
+            active={page === item.id}
+            onClick={() => go(item.id)}
+            badge={item.id === "ports" ? conflicts : item.id === "runs" ? activeRuns : undefined}
+            badgeTone={item.id === "runs" ? "primary" : "danger"}
+          />
         ))}
       </nav>
       <div className="border-t border-line px-3 py-3">

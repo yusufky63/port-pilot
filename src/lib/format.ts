@@ -38,3 +38,8 @@ export function middleEllipsis(text: string, max: number): string {
   const tail = keep - head;
   return `${text.slice(0, head)}…${text.slice(text.length - tail)}`;
 }
+
+/** Exit codes as people look them up: NTSTATUS values such as 0xC000013A in hex. */
+export function exitCodeText(code: number): string {
+  return code < 0 ? `0x${(code >>> 0).toString(16).toUpperCase()}` : String(code);
+}

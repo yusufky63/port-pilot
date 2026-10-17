@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Port Pilot",
+  "productName": "PortPilot",
   "mainBinaryName": "port-pilot",
   "version": "../package.json",
   "identifier": "io.github.yusufky63.portpilot",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Port Pilot",
+        "title": "PortPilot",
         "width": 1280,
         "height": 820,
         "minWidth": 760,
@@ -34,7 +34,7 @@
     "copyright": "Copyright (c) 2026 yusufky63 and contributors",
     "category": "DeveloperTool",
     "shortDescription": "Explains and controls local development ports on Windows",
-    "longDescription": "Port Pilot shows which process, project, Git worktree, WSL distro or Docker container owns every local port, and stops it safely: identity checked, graceful first, force only on request.",
+    "longDescription": "PortPilot shows which process, project, Git worktree, WSL distro or Docker container owns every local port, and stops it safely: identity checked, graceful first, force only on request.",
     "homepage": "https://github.com/yusufky63/port-pilot",
     "license": "MIT OR Apache-2.0",
     "licenseFile": "../LICENSE-MIT",

@@ -64,7 +64,7 @@ impl OsVersion {
         format!("{s} (build {}.{})", self.build, self.revision)
     }
 
-    /// Windows 10 left general support on 2025-10-14; Port Pilot keeps working there but
+    /// Windows 10 left general support on 2025-10-14; PortPilot keeps working there but
     /// treats it as best-effort.
     pub fn is_windows_10(&self) -> bool {
         self.build < 22_000

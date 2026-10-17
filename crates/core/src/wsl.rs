@@ -1,7 +1,7 @@
 //! WSL: decoding `wsl.exe` output, the probe script that runs inside a distro, and its parser.
 //!
 //! The probe is piped to `sh -s` over stdin, so nothing is quoted through the Windows command
-//! line. It runs only in distros that are already running; Port Pilot never boots a distro.
+//! line. It runs only in distros that are already running; PortPilot never boots a distro.
 
 use std::collections::HashMap;
 use std::net::IpAddr;

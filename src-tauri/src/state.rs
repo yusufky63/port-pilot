@@ -3,12 +3,15 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex as StdMutex};
 
 use parking_lot::{Condvar, Mutex, RwLock};
 use portpilot_core::Snapshot;
+use portpilot_engine::paths::{data_dir, portable_dir};
 use portpilot_engine::projects::ProjectGroup;
+use portpilot_engine::runs::RunManager;
+use portpilot_engine::store::{HistoryPrefs, Store};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -25,8 +28,12 @@ pub struct Settings {
     pub mask_secrets: bool,
     /// Seconds a process gets to exit after a graceful request.
     pub grace_seconds: u32,
-    /// Closing the window keeps Port Pilot in the notification area.
+    /// Closing the window keeps PortPilot in the notification area.
     pub close_to_tray: bool,
+    /// Record runs, exits and port changes in the local history (14 days).
+    pub history: bool,
+    /// Also record the (masked) command line of each run.
+    pub history_command_lines: bool,
 }
 
 impl Default for Settings {
@@ -40,6 +47,8 @@ impl Default for Settings {
             mask_secrets: true,
             grace_seconds: 5,
             close_to_tray: true,
+            history: true,
+            history_command_lines: false,
         }
     }
 }
@@ -69,6 +78,13 @@ impl Settings {
         }
     }
 
+    pub fn history_prefs(&self) -> HistoryPrefs {
+        HistoryPrefs {
+            enabled: self.history,
+            command_lines: self.history && self.history_command_lines,
+        }
+    }
+
     pub fn save(&self, dir: &Path) -> Result<(), String> {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         let text = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
@@ -77,23 +93,6 @@ impl Settings {
         std::fs::write(&tmp, text).map_err(|e| e.to_string())?;
         std::fs::rename(&tmp, dir.join("settings.json")).map_err(|e| e.to_string())
     }
-}
-
-/// `<exe folder>\data` when a `portable` marker file sits next to the exe.
-pub fn portable_dir() -> Option<PathBuf> {
-    let exe = std::env::current_exe().ok()?;
-    let dir = exe.parent()?;
-    dir.join("portable").is_file().then(|| dir.join("data"))
-}
-
-pub fn data_dir() -> PathBuf {
-    if let Some(dir) = portable_dir() {
-        return dir;
-    }
-    std::env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir)
-        .join("PortPilot")
 }
 
 /// Wakes the discovery thread early: after a stop, a settings change or a manual refresh.
@@ -119,7 +118,7 @@ pub struct AppState {
     pub settings_error: RwLock<Option<String>>,
     pub snapshot: RwLock<Option<Arc<Snapshot>>>,
     pub projects: RwLock<Vec<ProjectGroup>>,
-    /// Folders the UI may open: project roots and worktrees Port Pilot itself found.
+    /// Folders the UI may open: project roots and worktrees PortPilot itself found.
     pub known_paths: RwLock<HashSet<String>>,
     pub paused: AtomicBool,
     pub wake: Wake,
@@ -127,6 +126,12 @@ pub struct AppState {
     pub invalidate: AtomicBool,
     /// UI language resolved by the frontend, for the tray menu.
     pub ui_language: RwLock<String>,
+    /// `portpilot.db`: leases, trusted commands, runs and history. `None` when it cannot be
+    /// opened; the rest of the app works without it.
+    pub store: Option<Arc<StdMutex<Store>>>,
+    pub store_error: Option<String>,
+    /// Runs this app started. Dropping it on exit closes their jobs.
+    pub runs: RunManager,
 }
 
 impl AppState {
@@ -136,6 +141,12 @@ impl AppState {
             Ok(s) => (s, None),
             Err(e) => (Settings::default(), Some(e)),
         };
+        let (store, store_error) = match Store::open(&dir.join("portpilot.db")) {
+            Ok(s) => (Some(Arc::new(StdMutex::new(s))), None),
+            Err(e) => (None, Some(e)),
+        };
+        let helper = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("port-pilot.exe"));
+        let runs = RunManager::new(helper, store.clone(), settings.history_prefs());
         AppState {
             portable: portable_dir().is_some(),
             data_dir: dir,
@@ -148,7 +159,28 @@ impl AppState {
             wake: Wake::default(),
             invalidate: AtomicBool::new(false),
             ui_language: RwLock::new("en".into()),
+            store,
+            store_error,
+            runs,
         }
+    }
+
+    /// Runs `f` with the database, or says why it is not available.
+    pub fn with_store<T>(
+        &self,
+        f: impl FnOnce(&mut Store) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let store = self.store.as_ref().ok_or_else(|| {
+            self.store_error
+                .clone()
+                .unwrap_or_else(|| "the history database is not available".into())
+        })?;
+        let mut guard = store.lock().map_err(|e| e.to_string())?;
+        f(&mut guard)
+    }
+
+    pub fn remember_path(&self, p: &str) {
+        self.known_paths.write().insert(Self::path_key(p));
     }
 
     pub fn path_key(p: &str) -> String {
@@ -189,6 +221,15 @@ mod tests {
         let s: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
         assert_eq!(s.theme, "dark");
         assert_eq!(s.grace_seconds, 5);
+        assert!(s.history);
+        assert!(!s.history_command_lines);
+        assert_eq!(
+            s.history_prefs(),
+            HistoryPrefs {
+                enabled: true,
+                command_lines: false
+            }
+        );
     }
 
     #[test]

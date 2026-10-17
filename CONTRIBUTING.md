@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping. Port Pilot ends processes on real machines, so the bar for changes to discovery and the stop flow is high, and the bar for everything else is friendly.
+Thanks for helping. PortPilot ends processes on real machines, so the bar for changes to discovery and the stop flow is high, and the bar for everything else is friendly.
 
 ## Ground rules
 

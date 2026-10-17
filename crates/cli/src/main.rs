@@ -1,10 +1,12 @@
-//! `portctl`: the command-line face of Port Pilot.
+//! `portctl`: the command-line face of PortPilot.
 //!
 //! Exit codes: 0 success, 2 invalid arguments, 3 no matching listener, 4 ambiguous ownership,
 //! 5 access denied or refused, 6 identity changed (PID reuse), 7 graceful timeout,
-//! 8 WSL or Docker unavailable, 10 internal error.
+//! 8 WSL or Docker unavailable, 9 port conflict, 10 internal error, 11 recipe missing or
+//! invalid. `portctl run` ends with the run's own exit code when the run exits by itself.
 
 mod render;
+mod runs;
 
 use std::io::{BufRead, IsTerminal, Write};
 use std::path::PathBuf;
@@ -14,7 +16,8 @@ use clap::{Args, Parser, Subcommand};
 use portpilot_core::net::{PortRange, parse_port_range};
 use portpilot_core::{Listener, ProcessClass, Protocol, SCHEMA_VERSION, StopOutcome};
 use portpilot_engine::doctor::{self, PortDiagnosis};
-use portpilot_engine::{Discovery, Options, StopRequest, git, projects};
+use portpilot_engine::store::Store;
+use portpilot_engine::{Discovery, Options, StopRequest, git, paths, projects};
 use serde::Serialize;
 
 mod code {
@@ -26,7 +29,9 @@ mod code {
     pub const IDENTITY_CHANGED: i32 = 6;
     pub const GRACEFUL_TIMEOUT: i32 = 7;
     pub const RUNTIME_UNAVAILABLE: i32 = 8;
+    pub const PORT_CONFLICT: i32 = 9;
     pub const INTERNAL: i32 = 10;
+    pub const RECIPE: i32 = 11;
 }
 
 #[derive(Parser)]
@@ -34,7 +39,7 @@ mod code {
     name = "portctl",
     version,
     about = "Explain and control local development ports on Windows",
-    after_help = "Exit codes: 0 ok, 2 invalid arguments, 3 no listener, 4 ambiguous owner, 5 access denied, 6 identity changed, 7 graceful timeout, 8 runtime unavailable, 10 internal error."
+    after_help = "Exit codes: 0 ok, 2 invalid arguments, 3 no listener, 4 ambiguous owner, 5 access denied, 6 identity changed, 7 graceful timeout, 8 runtime unavailable, 9 port conflict, 10 internal error, 11 recipe missing or invalid."
 )]
 struct Cli {
     /// Show command lines without masking secrets.
@@ -134,6 +139,82 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Start a run from .portpilot.toml in this console, after showing the exact command.
+    Run {
+        /// The run's name (`[run.<name>]`); optional when the recipe has one run.
+        name: Option<String>,
+        /// The project folder (the current one by default).
+        #[arg(long)]
+        path: Option<PathBuf>,
+        /// Run once without asking when the command is not trusted yet.
+        #[arg(long, short)]
+        yes: bool,
+        /// When a leased port is in use, move the lease to the next free port.
+        #[arg(long)]
+        next_free: bool,
+        /// Grace period in seconds after the first CTRL+C.
+        #[arg(long, default_value_t = 5)]
+        timeout: u64,
+    },
+    /// Port leases per repository, worktree and service.
+    Lease {
+        #[command(subcommand)]
+        what: LeaseWhat,
+    },
+    /// Runs, exits and port changes of the last 14 days.
+    History {
+        /// Only events of this port.
+        #[arg(long)]
+        port: Option<u16>,
+        /// `runs` or `ports`.
+        #[arg(long)]
+        kind: Option<String>,
+        /// Only the last N days.
+        #[arg(long)]
+        days: Option<u32>,
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum LeaseWhat {
+    /// Lease a port for a service of this worktree and print it.
+    Acquire {
+        service: String,
+        #[arg(long)]
+        path: Option<PathBuf>,
+        /// Overrides `[ports.<service>] preferred`.
+        #[arg(long)]
+        preferred: Option<u16>,
+        /// Overrides `[ports.<service>] range`, such as 5173-5199.
+        #[arg(long)]
+        range: Option<String>,
+        /// Move the lease to the next free port.
+        #[arg(long)]
+        next: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Release one service's lease, or every lease of this worktree.
+    Release {
+        service: Option<String>,
+        #[arg(long)]
+        path: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Leases of this repository, or of every repository with --all.
+    List {
+        #[arg(long)]
+        all: bool,
+        #[arg(long)]
+        path: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -156,6 +237,17 @@ enum ProjectWhat {
         #[arg(long)]
         json: bool,
     },
+}
+
+/// Discovery that also knows the runs PortPilot started (from the app or `portctl run`), so
+/// their listeners are attributed to the run's folder exactly.
+fn discovery(opts: Options) -> Discovery {
+    let mut d = Discovery::new(opts);
+    if let Some(store) = Store::open_existing(&paths::database_path()) {
+        let history = portpilot_engine::store::HistoryPrefs::load(&paths::data_dir()).enabled;
+        d.set_managed(portpilot_engine::runs::managed_from_store(&store, history));
+    }
+    d
 }
 
 fn options(sources: Sources, udp: bool, raw: bool) -> Options {
@@ -207,7 +299,7 @@ fn is_visible(l: &Listener, all: bool, udp: bool) -> bool {
 }
 
 fn cmd_list(json: bool, all: bool, udp: bool, sources: Sources, raw: bool) -> i32 {
-    let mut snap = Discovery::new(options(sources, udp, raw)).snapshot();
+    let mut snap = discovery(options(sources, udp, raw)).snapshot();
     let total = snap.listeners.len();
     snap.listeners.retain(|l| is_visible(l, all, udp));
     if json {
@@ -234,7 +326,7 @@ fn cmd_list(json: bool, all: bool, udp: bool, sources: Sources, raw: bool) -> i3
 }
 
 fn diagnose(port: u16, sources: Sources, raw: bool) -> PortDiagnosis {
-    let snap = Discovery::new(options(sources, false, raw)).snapshot();
+    let snap = discovery(options(sources, false, raw)).snapshot();
     doctor::diagnose_port(port, &snap, &doctor::excluded_tcp_ranges())
 }
 
@@ -252,7 +344,7 @@ fn cmd_who(port: u16, json: bool, sources: Sources, raw: bool) -> i32 {
 }
 
 fn cmd_tree(port: u16, json: bool, sources: Sources, raw: bool) -> i32 {
-    let snap = Discovery::new(options(sources, false, raw)).snapshot();
+    let snap = discovery(options(sources, false, raw)).snapshot();
     let owners: Vec<&Listener> = snap
         .listeners
         .iter()
@@ -313,7 +405,7 @@ fn cmd_stop(
     sources: Sources,
     raw: bool,
 ) -> i32 {
-    let snap = Discovery::new(options(sources, false, raw)).snapshot();
+    let snap = discovery(options(sources, false, raw)).snapshot();
     let mut owners: Vec<&Listener> = snap
         .listeners
         .iter()
@@ -345,7 +437,7 @@ fn cmd_stop(
             .blocked
             .map(render::block_reason)
             .unwrap_or("its identity is unknown");
-        eprintln!("Port Pilot will not stop {}: {why}.", describe(l));
+        eprintln!("PortPilot will not stop {}: {why}.", describe(l));
         return code::ACCESS_DENIED;
     };
     if force && !yes {
@@ -408,7 +500,7 @@ fn cmd_find(range: &str, count: usize, json: bool) -> i32 {
             return code::INVALID;
         }
     };
-    let snap = Discovery::new(Options {
+    let snap = discovery(Options {
         udp: false,
         wsl: true,
         docker: true,
@@ -488,7 +580,7 @@ fn cmd_project_inspect(path: Option<PathBuf>, json: bool, raw: bool) -> i32 {
         .as_ref()
         .map(|g| git::worktrees(&g.top_level))
         .unwrap_or_default();
-    let snap = Discovery::new(options(
+    let snap = discovery(options(
         Sources {
             no_wsl: true,
             no_docker: false,
@@ -570,7 +662,7 @@ fn cmd_project_inspect(path: Option<PathBuf>, json: bool, raw: bool) -> i32 {
 }
 
 fn cmd_projects(json: bool, raw: bool) -> i32 {
-    let snap = Discovery::new(options(
+    let snap = discovery(options(
         Sources {
             no_wsl: false,
             no_docker: false,
@@ -631,6 +723,36 @@ fn main() {
             what: ProjectWhat::Inspect { path, json },
         } => cmd_project_inspect(path, json, raw),
         Command::Projects { json } => cmd_projects(json, raw),
+        Command::Run {
+            name,
+            path,
+            yes,
+            next_free,
+            timeout,
+        } => runs::cmd_run(name, path, yes, next_free, timeout),
+        Command::Lease { what } => match what {
+            LeaseWhat::Acquire {
+                service,
+                path,
+                preferred,
+                range,
+                next,
+                json,
+            } => runs::cmd_lease_acquire(service, path, preferred, range, next, json),
+            LeaseWhat::Release {
+                service,
+                path,
+                json,
+            } => runs::cmd_lease_release(service, path, json),
+            LeaseWhat::List { all, path, json } => runs::cmd_lease_list(all, path, json),
+        },
+        Command::History {
+            port,
+            kind,
+            days,
+            limit,
+            json,
+        } => runs::cmd_history(port, kind, days, limit, json),
     };
     std::process::exit(exit);
 }

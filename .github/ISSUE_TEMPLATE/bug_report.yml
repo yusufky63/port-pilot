@@ -4,11 +4,11 @@ labels: [bug, needs-repro]
 body:
   - type: markdown
     attributes:
-      value: If Port Pilot stopped or showed the wrong process, say so in the title. Those reports are handled first. Remove paths, user names and secrets from anything you paste; command lines can contain tokens.
+      value: If PortPilot stopped or showed the wrong process, say so in the title. Those reports are handled first. Remove paths, user names and secrets from anything you paste; command lines can contain tokens.
   - type: input
     id: version
     attributes:
-      label: Port Pilot version
+      label: PortPilot version
       description: Settings > About, or `portctl --version`.
       placeholder: 0.1.0-alpha.1
     validations:
@@ -52,7 +52,7 @@ body:
       label: Steps to reproduce
       placeholder: |
         1. Run `pnpm dev` in a project
-        2. Open Port Pilot
+        2. Open PortPilot
         3. ...
     validations:
       required: true

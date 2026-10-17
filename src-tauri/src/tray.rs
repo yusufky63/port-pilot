@@ -24,14 +24,14 @@ struct Texts {
 fn texts(lang: &str) -> Texts {
     if lang == "tr" {
         Texts {
-            open: "Port Pilot'u aç",
+            open: "PortPilot'u aç",
             pause: "Keşfi duraklat",
             quit: "Çık",
             paused: "duraklatıldı",
         }
     } else {
         Texts {
-            open: "Open Port Pilot",
+            open: "Open PortPilot",
             pause: "Pause discovery",
             quit: "Quit",
             paused: "paused",
@@ -140,14 +140,14 @@ pub fn show_main(app: &AppHandle) {
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let menu = build_menu(app, None)?;
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("Port Pilot")
+        .tooltip("PortPilot")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| {
             let id = event.id().as_ref().to_string();
             match id.as_str() {
                 "open" => show_main(app),
-                "quit" => app.exit(0),
+                "quit" => crate::request_quit(app),
                 "pause" => {
                     let state = app.state::<AppState>();
                     let now = !state.paused.load(Ordering::Relaxed);
@@ -190,10 +190,10 @@ pub fn refresh(app: &AppHandle) {
     let snapshot = state.snapshot.read().clone();
     let lang = state.ui_language.read().clone();
     let paused = state.paused.load(Ordering::Relaxed);
-    let mut tooltip = "Port Pilot".to_string();
+    let mut tooltip = "PortPilot".to_string();
     if let Some(s) = &snapshot {
         tooltip = format!(
-            "Port Pilot: {}",
+            "PortPilot: {}",
             summary(&lang, dev_listeners(s).len(), s.conflicts.len())
         );
     }

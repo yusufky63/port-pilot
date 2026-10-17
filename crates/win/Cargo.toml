@@ -1,6 +1,6 @@
 [package]
 name = "portpilot-win"
-description = "Windows layer of Port Pilot: socket tables, process identity, WMI and process control"
+description = "Windows layer of PortPilot: socket tables, process identity, WMI and process control"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,9 +15,11 @@ windows = { version = "=0.62.2", features = [
   "Win32_Foundation",
   "Win32_NetworkManagement_IpHelper",
   "Win32_Security",
+  "Win32_Security_Cryptography",
   "Win32_System_Com",
   "Win32_System_Console",
   "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_JobObjects",
   "Win32_System_Ole",
   "Win32_System_Registry",
   "Win32_System_Threading",
@@ -25,5 +27,6 @@ windows = { version = "=0.62.2", features = [
   "Win32_System_Variant",
   "Win32_System_Wmi",
   "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
   "Win32_UI_WindowsAndMessaging",
 ] }

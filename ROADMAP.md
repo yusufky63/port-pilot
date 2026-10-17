@@ -11,11 +11,14 @@ What is planned after 0.1.0-alpha.1, roughly in order. The reasons are in [docs/
 - Doctor: port diagnosis, reserved ranges, free ports.
 - Desktop app with tray, `portctl` CLI with JSON and exit codes, portable mode and NSIS installer.
 
-## Next (0.1)
+## Done for 0.1 (unreleased)
 
-- **Managed runs**: start a project's dev command from Port Pilot inside a Job Object with a new process group, with the working directory recorded exactly, after a "trust and run" prompt showing the command.
+- **Managed runs**: a project's dev command started from PortPilot inside a Job Object with a new process group, with the working directory recorded exactly, after a "trust and run" prompt showing the command.
 - **Port leases** per repository, worktree and service, with a `.portpilot.toml` recipe that opts into `--port {ports.web}`.
 - **History**: a local SQLite timeline of runs, exits and port changes (no command lines by default, 14-day retention).
+
+## Next (0.1)
+
 - Code signing, then winget and Scoop packages.
 
 ## Later (0.2)

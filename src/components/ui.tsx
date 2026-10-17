@@ -290,7 +290,7 @@ export function Skeleton({ className }: { className?: string }) {
   return <div className={cx("rounded-md bg-surface-muted", className)} />;
 }
 
-export function Dialog({ open, onClose, title, children, footer }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; footer?: ReactNode }) {
+export function Dialog({ open, onClose, title, children, footer, wide }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
   const { t } = useTranslation();
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);
@@ -312,7 +312,7 @@ export function Dialog({ open, onClose, title, children, footer }: { open: boole
         aria-modal="true"
         aria-labelledby={titleId}
         onMouseDown={(e) => e.stopPropagation()}
-        className="anim-rise flex max-h-full w-full max-w-[540px] flex-col overflow-hidden rounded-xl border border-line bg-canvas shadow-overlay"
+        className={cx("anim-rise flex max-h-full w-full flex-col overflow-hidden rounded-xl border border-line bg-canvas shadow-overlay", wide ? "max-w-[720px]" : "max-w-[540px]")}
       >
         <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
           <h2 id={titleId} className="display-medium text-[18px] text-ink">

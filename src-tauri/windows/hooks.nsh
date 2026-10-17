@@ -1,7 +1,7 @@
-; NSIS hooks for the Port Pilot installer.
+; NSIS hooks for the PortPilot installer.
 
 ; Tauri's "Delete app data" only removes `$APPDATA\${BUNDLEID}` and `$LOCALAPPDATA\${BUNDLEID}`,
-; while Port Pilot keeps its settings in `$APPDATA\PortPilot` (`state::data_dir`). Same
+; while PortPilot keeps its settings in `$APPDATA\PortPilot` (`state::data_dir`). Same
 ; condition as Tauri's own removal: the box is unticked by default and never shown in silent and
 ; passive runs, so an upgrade keeps the settings unless the user ticks it. The portable build
 ; keeps its data beside the exe and has no uninstaller. The `$APPDATA` check keeps an unresolved

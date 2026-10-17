@@ -143,7 +143,8 @@ impl InferContext<'_> {
             .is_some_and(|h| h.trim_end_matches('\\').eq_ignore_ascii_case(dir))
     }
 
-    fn manifests_in(&self, dir: &str) -> Vec<String> {
+    /// Manifest files directly in `dir`.
+    pub fn manifests_in(&self, dir: &str) -> Vec<String> {
         let mut found: Vec<String> = MANIFESTS
             .iter()
             .filter(|m| self.fs.exists(&format!("{dir}\\{m}")))

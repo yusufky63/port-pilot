@@ -235,6 +235,7 @@ mod tests {
             },
             conflict: false,
             notes: vec![],
+            managed: None,
         };
         refresh_reachability(&mut l);
         l

@@ -1,4 +1,4 @@
-/* Port Pilot design tokens (house style, Tailwind v4). One brand colour (blue) and three status
+/* PortPilot design tokens (house style, Tailwind v4). One brand colour (blue) and three status
    colours. Runtimes and exposure are told apart by labels and icons, not by new colours. */
 @import "tailwindcss";
 

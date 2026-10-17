@@ -2,7 +2,7 @@
 //! check before anything is sent:
 //!
 //! 1. Open the process and compare its creation time with the one the user saw.
-//! 2. Refuse system processes, services, WSL/Docker forwarders and Port Pilot's own lineage.
+//! 2. Refuse system processes, services, WSL/Docker forwarders and PortPilot's own lineage.
 //! 3. Graceful request: WM_CLOSE for windowed programs, otherwise CTRL+C on the target's
 //!    console, but only when nothing outside the target's own tree and shell shares it.
 //! 4. Wait for the grace period.
@@ -123,7 +123,7 @@ fn stop_windows(
     let procs = process::snapshot().unwrap_or_default();
     if process::own_lineage(&procs).contains(&pid) {
         let mut r = report(StopOutcome::Refused, started);
-        r.detail = Some("Port Pilot does not stop itself or the program that runs it".into());
+        r.detail = Some("PortPilot does not stop itself or the program that runs it".into());
         return r;
     }
     let target = match Target::open(pid, start) {
@@ -265,7 +265,7 @@ fn stop_docker(id: &str, req: &StopRequest, started: Instant) -> StopReport {
     r
 }
 
-/// Runs the stop flow. `helper_exe` is a Port Pilot executable that handles the console-helper
+/// Runs the stop flow. `helper_exe` is a PortPilot executable that handles the console-helper
 /// argument (the CLI and the desktop app both do).
 pub fn stop(req: &StopRequest, helper_exe: &Path) -> StopReport {
     let started = Instant::now();

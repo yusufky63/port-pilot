@@ -1,6 +1,6 @@
-# Port Pilot: notes for coding agents
+# PortPilot: notes for coding agents
 
-Windows desktop app + CLI that explains local dev ports (owner process, parents, project, Git worktree, WSL, Docker) and stops owners safely. Design: `docs/architecture.md`; safety rules: `docs/security.md`; plan: `ROADMAP.md`.
+Windows desktop app + CLI that explains local dev ports (owner process, parents, project, Git worktree, WSL, Docker), stops owners safely, and runs a project's dev commands from `.portpilot.toml` with port leases and a local history. Design: `docs/architecture.md`; safety rules: `docs/security.md`; plan: `ROADMAP.md`.
 
 ## Layout
 
@@ -11,8 +11,10 @@ Windows desktop app + CLI that explains local dev ports (owner process, parents,
 
 - Process identity is `(pid, creation time)`. Never act on a PID alone; never send a PID from the UI (stop requests carry a listener id).
 - Graceful first. Console signals only when `GetConsoleProcessList` shows nothing outside the target's tree, its runners and its shell. Terminate only with explicit consent.
-- Project folders are "exact" only when a runtime reports them (WSL `/proc`, Compose label). Everything else is "inferred"; never guess from relative paths.
-- No network traffic, no persisted command lines, secrets masked by default.
+- Project folders are "exact" only when a runtime reports them (WSL `/proc`, Compose label) or PortPilot started the run there. Everything else is "inferred"; never guess from relative paths.
+- Nothing from a repository runs without the trust prompt; trust is the SHA-256 of the run's command, cwd and env. Recipes are read only on explicit user action, and ports enter commands only through `{ports.<service>}`.
+- Managed runs: suspended spawn into a Job Object with kill-on-close, `CREATE_NEW_PROCESS_GROUP`, graceful stop is CTRL+BREAK to the run's group, `TerminateJobObject` only on consent.
+- No network traffic, no persisted command lines (unless the user enables them for run history, masked), secrets masked by default. History keeps 14 days.
 - Git always runs with `--no-optional-locks`.
 
 ## Check matrix (all must pass)
@@ -24,6 +26,6 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-Integration tests start `pp-fixture` servers and stop them; Git Bash passes "ignore CTRL+C" to children, which is why the stop flow follows CTRL+C with CTRL+BREAK.
+Integration tests start `pp-fixture` servers and stop them; Git Bash passes "ignore CTRL+C" to children, which is why the stop flow follows CTRL+C with CTRL+BREAK. Tests that touch leases, trust or history set `PORTPILOT_DATA_DIR` or use `Store::in_memory()`, never the user's data folder.
 
 UI checks: `$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9333"; pnpm app:dev`, then `node scripts/screenshots.mjs` (light/dark, 1440 and 760 px). Screenshots show the real machine; keep them out of the repository.

@@ -4,7 +4,7 @@ export type Protocol = "tcp" | "udp";
 export type Exposure = "loopback" | "lan" | "all";
 export type Runtime = "windows" | "wsl" | "docker";
 export type Confidence = "exact" | "inferred";
-export type AttributionSource = "procCwd" | "composeLabel" | "commandLine" | "executablePath";
+export type AttributionSource = "procCwd" | "composeLabel" | "commandLine" | "executablePath" | "launched";
 export type ProcessClass = "user" | "service" | "system" | "relay";
 export type LauncherKind = "claude" | "codex" | "gemini" | "vsCode" | "cursor" | "windsurf" | "jetBrains" | "zed" | "terminal" | "explorer" | "service";
 export type StopBlock = "system" | "service" | "relay" | "accessDenied" | "identityUnknown" | "selfProcess";
@@ -21,7 +21,7 @@ export type StopOutcome =
   | "refused"
   | "runtimeUnavailable"
   | "failed";
-export type GracefulChannel = "closeWindow" | "consoleCtrlC" | "consoleCtrlBreak" | "sigterm" | "dockerStop";
+export type GracefulChannel = "closeWindow" | "consoleCtrlC" | "consoleCtrlBreak" | "groupCtrlBreak" | "sigterm" | "dockerStop";
 export type GracefulSkip = "noConsole" | "sharedConsole" | "signalFailed";
 
 export interface Endpoint {
@@ -112,6 +112,11 @@ export interface StopInfo {
   blocked: StopBlock | null;
 }
 
+export interface ManagedRef {
+  runId: string;
+  name: string;
+}
+
 export interface Listener {
   id: string;
   protocol: Protocol;
@@ -130,6 +135,8 @@ export interface Listener {
   stop: StopInfo;
   conflict: boolean;
   notes: Note[];
+  /** Set when PortPilot started the owner as part of a managed run. */
+  managed: ManagedRef | null;
 }
 
 export interface Conflict {
@@ -223,6 +230,8 @@ export interface Settings {
   maskSecrets: boolean;
   graceSeconds: number;
   closeToTray: boolean;
+  history: boolean;
+  historyCommandLines: boolean;
 }
 
 export interface AppInfo {
@@ -233,5 +242,166 @@ export interface AppInfo {
   user: string | null;
   hasVscode: boolean;
   settingsError: string | null;
+  storeError: string | null;
   paused: boolean;
+}
+
+// Managed runs, leases and history (crates/engine/src/runs.rs, leases.rs, store.rs and
+// src-tauri/src/runs.rs).
+
+export interface RunPort {
+  service: string;
+  port: number;
+}
+
+export type RunState = "running" | "stopping" | "exited";
+
+export interface RunInfo {
+  id: string;
+  name: string;
+  project: string;
+  folder: string;
+  command: string;
+  ports: RunPort[];
+  pid: number;
+  start: number;
+  startedAt: string;
+  state: RunState;
+  exitCode: number | null;
+  endedAt: string | null;
+  endedBy: "stopped" | "terminated" | null;
+  processes: number;
+  lines: number;
+}
+
+export interface OutputLine {
+  seq: number;
+  stream: "stdout" | "stderr";
+  text: string;
+}
+
+export interface OutputChunk {
+  lines: OutputLine[];
+  next: number;
+  truncated: boolean;
+}
+
+export interface EnvVar {
+  key: string;
+  value: string;
+}
+
+export interface RecipeRunView {
+  name: string;
+  command: string;
+  cwd: string | null;
+  env: EnvVar[];
+  services: string[];
+  trusted: boolean;
+  trustedAt: number | null;
+}
+
+export interface RecipePortView {
+  service: string;
+  preferred: number;
+  rangeStart: number;
+  rangeEnd: number;
+  leased: number | null;
+}
+
+export interface RecipeView {
+  folder: string;
+  project: string;
+  worktree: string;
+  commonDir: string | null;
+  branch: string | null;
+  linkedWorktree: boolean;
+  runs: RecipeRunView[];
+  ports: RecipePortView[];
+}
+
+export interface RecipeResult {
+  folder: string;
+  recipe: RecipeView | null;
+  error: string | null;
+}
+
+export interface LeaseUser {
+  listenerId: string;
+  pid: number | null;
+  name: string;
+  project: string | null;
+  sameWorktree: boolean;
+}
+
+export interface PlanPort {
+  service: string;
+  port: number | null;
+  leased: boolean;
+  rangeStart: number;
+  rangeEnd: number;
+  users: LeaseUser[];
+}
+
+export interface RunPlan {
+  run: string;
+  project: string;
+  recipeFolder: string;
+  folder: string;
+  worktree: string;
+  branch: string | null;
+  command: string;
+  env: EnvVar[];
+  ports: PlanPort[];
+  digest: string;
+  trusted: boolean;
+  trustedAt: number | null;
+  blocked: string | null;
+}
+
+export interface LeaseView {
+  ownerKey: string;
+  service: string;
+  port: number;
+  worktree: string;
+  commonDir: string | null;
+  project: string;
+  acquiredAt: number;
+  users: LeaseUser[];
+  stale: boolean;
+}
+
+export type EventKind = "runStarted" | "runExited" | "portOpened" | "portClosed";
+
+export interface HistoryEvent {
+  id: number;
+  /** Unix milliseconds. */
+  at: number;
+  kind: EventKind;
+  port: number | null;
+  runId: string | null;
+  runName: string | null;
+  pid: number | null;
+  process: string | null;
+  project: string | null;
+  folder: string | null;
+  runtime: string | null;
+  exitCode: number | null;
+  detail: string | null;
+  command: string | null;
+}
+
+export interface TrustEntry {
+  projectKey: string;
+  run: string;
+  digest: string;
+  folder: string;
+  project: string;
+  trustedAt: number;
+}
+
+export interface RecentFolder {
+  folder: string;
+  project: string;
+  lastUsed: number;
 }

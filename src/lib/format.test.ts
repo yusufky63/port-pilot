@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ageParts, hostPort, localDateTime, middleEllipsis } from "./format";
+import { ageParts, exitCodeText, hostPort, localDateTime, middleEllipsis } from "./format";
 
 describe("format", () => {
   const now = Date.parse("2026-10-17T15:00:00Z");
@@ -30,5 +30,11 @@ describe("format", () => {
     expect(s.length).toBe(24);
     expect(s.startsWith("C:\\Users")).toBe(true);
     expect(s.endsWith("apps\\web")).toBe(true);
+  });
+
+  it("exit codes", () => {
+    expect(exitCodeText(0)).toBe("0");
+    expect(exitCodeText(3)).toBe("3");
+    expect(exitCodeText(-1073741510)).toBe("0xC000013A");
   });
 });

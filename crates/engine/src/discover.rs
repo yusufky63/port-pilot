@@ -24,7 +24,7 @@ use portpilot_core::time::{filetime_to_rfc3339, format_rfc3339};
 use portpilot_core::wsl::{LinuxProc, unc_path};
 use portpilot_core::{
     AdapterState, AdapterStatus, Adapters, AttributionSource, Confidence, ContainerInfo, Endpoint,
-    Exposure, GitInfo, Launcher, Listener, Note, ProcessClass, ProcessInfo, ProcessRef,
+    Exposure, GitInfo, Launcher, Listener, ManagedRef, Note, ProcessClass, ProcessInfo, ProcessRef,
     ProjectInfo, Protocol, Runtime, SCHEMA_VERSION, Snapshot, StopBlock, StopInfo, StopTarget,
     WslInfo,
 };
@@ -116,6 +116,19 @@ struct Cached<T> {
     value: T,
 }
 
+/// A run PortPilot started: its processes are attributed to its folder exactly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManagedRun {
+    pub run_id: String,
+    pub name: String,
+    pub project: String,
+    /// The working directory recorded when the run started.
+    pub folder: String,
+    /// `(pid, creation time)` of processes in the run: every process of the job when the
+    /// caller owns it, or only the first one, matched through parent chains.
+    pub members: Vec<(u32, u64)>,
+}
+
 pub struct Discovery {
     opts: Options,
     git: GitCache,
@@ -130,6 +143,7 @@ pub struct Discovery {
     projects: HashMap<(u32, u64), Option<Inferred>>,
     wsl_cache: Option<Cached<(Vec<Listener>, AdapterState)>>,
     docker_cache: Option<Cached<Result<Vec<ContainerInfo>, AdapterState>>>,
+    managed: Vec<ManagedRun>,
 }
 
 fn ensure(details: &mut HashMap<u32, Detail>, pid: u32) -> &Detail {
@@ -184,6 +198,56 @@ impl Discovery {
             projects: HashMap::new(),
             wsl_cache: None,
             docker_cache: None,
+            managed: Vec::new(),
+        }
+    }
+
+    /// The runs PortPilot started, for exact attribution in the next snapshots.
+    pub fn set_managed(&mut self, runs: Vec<ManagedRun>) {
+        self.managed = runs;
+    }
+
+    /// The run that owns process `pid` (created at `start`), directly or through its parent
+    /// chain. Identity is PID plus creation time, so a reused PID never matches.
+    fn managed_run(
+        &self,
+        pid: u32,
+        start: Option<u64>,
+        chain: &[u32],
+        details: &HashMap<u32, Detail>,
+    ) -> Option<&ManagedRun> {
+        if self.managed.is_empty() {
+            return None;
+        }
+        let me = start.map(|s| (pid, s));
+        let line = me.into_iter().chain(
+            chain
+                .iter()
+                .filter_map(|p| details.get(p).and_then(|d| d.start).map(|s| (*p, s))),
+        );
+        for id in line {
+            if let Some(run) = self.managed.iter().find(|r| r.members.contains(&id)) {
+                return Some(run);
+            }
+        }
+        None
+    }
+
+    fn managed_project(&self, run: &ManagedRun) -> ProjectInfo {
+        let fs = RealFs;
+        let ctx = InferContext {
+            fs: &fs,
+            denied: Vec::new(),
+            home: None,
+        };
+        ProjectInfo {
+            root: run.folder.clone(),
+            name: run.project.clone(),
+            confidence: Confidence::Exact,
+            source: AttributionSource::Launched,
+            manifests: ctx.manifests_in(&run.folder),
+            git: self.git.info(&run.folder),
+            open_path: Some(run.folder.clone()),
         }
     }
 
@@ -397,10 +461,14 @@ impl Discovery {
                 )
             }))
             .map(|(kind, pid, name)| Launcher { kind, pid, name });
-            let project = if process.class == ProcessClass::User {
-                self.project_for(g.pid, &details)
-            } else {
-                None
+            let managed = (process.class == ProcessClass::User)
+                .then(|| self.managed_run(g.pid, process.start, &chain, &details))
+                .flatten()
+                .cloned();
+            let project = match &managed {
+                Some(run) => Some(self.managed_project(run)),
+                None if process.class == ProcessClass::User => self.project_for(g.pid, &details),
+                None => None,
             };
             let stop = self.stop_info(&process, &lineage);
             let owner = format!("{}:{}", g.pid, process.start.unwrap_or(0));
@@ -426,6 +494,10 @@ impl Discovery {
                 } else {
                     Vec::new()
                 },
+                managed: managed.map(|r| ManagedRef {
+                    run_id: r.run_id,
+                    name: r.name,
+                }),
             };
             refresh_reachability(&mut l);
             out.push(l);
@@ -520,6 +592,7 @@ impl Discovery {
                     },
                     conflict: false,
                     notes: Vec::new(),
+                    managed: None,
                 };
                 refresh_reachability(&mut l);
                 out.push(l);
@@ -613,6 +686,7 @@ impl Discovery {
             stop: StopInfo { target, blocked },
             conflict: false,
             notes: Vec::new(),
+            managed: None,
         };
         refresh_reachability(&mut l);
         l

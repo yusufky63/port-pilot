@@ -1,4 +1,4 @@
-import { Code2, FolderGit2, FolderOpen, GitBranch, Lock, SquareTerminal } from "lucide-react";
+import { Code2, FolderGit2, FolderOpen, GitBranch, Lock, Play, SquareTerminal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge, Button, Card, EmptyState, PageHeader, Skeleton } from "../components/ui";
@@ -37,9 +37,17 @@ function GroupCard({ group, byId }: { group: ProjectGroup; byId: Map<string, Lis
   const open = (path: string, how: "folder" | "terminal" | "editor") => {
     api.openPath(path, how).catch((e) => toast("danger", t("toast.failed", { error: errorText(e) })));
   };
-  const actions = (path: string | null) =>
+  const openRun = useApp((s) => s.openRun);
+  // Git repositories get the run button on each worktree row; the header has it only for
+  // projects outside Git, which have no rows.
+  const actions = (path: string | null, run: boolean) =>
     path && (
       <span className="flex shrink-0 items-center gap-0.5">
+        {run && group.runtime === "windows" && (
+          <Button size="icon" variant="ghost" title={t("projects.runHint")} aria-label={t("projects.run")} onClick={() => openRun(path)}>
+            <Play size={15} strokeWidth={1.75} />
+          </Button>
+        )}
         <Button size="icon" variant="ghost" title={t("detail.openFolder")} aria-label={t("detail.openFolder")} onClick={() => open(path, "folder")}>
           <FolderOpen size={15} strokeWidth={1.75} />
         </Button>
@@ -68,7 +76,7 @@ function GroupCard({ group, byId }: { group: ProjectGroup; byId: Map<string, Lis
             {group.root}
           </div>
         </div>
-        {actions(group.openPath)}
+        {actions(group.openPath, group.commonDir === null)}
       </header>
       {group.commonDir === null ? (
         <div className="flex items-center justify-between gap-3 px-4 py-3 text-[13px]">
@@ -97,7 +105,7 @@ function GroupCard({ group, byId }: { group: ProjectGroup; byId: Map<string, Lis
               </div>
               <div className="flex items-center gap-2">
                 {w.listenerIds.length > 0 ? <PortChips ids={w.listenerIds} byId={byId} /> : <span className="text-[12px] text-ink-muted">{t("projects.idle")}</span>}
-                {group.runtime === "windows" && actions(w.path)}
+                {group.runtime === "windows" && actions(w.path, true)}
               </div>
             </li>
           ))}

@@ -2,9 +2,9 @@ import { create } from "zustand";
 import i18n, { setLanguage } from "../i18n";
 import { api } from "../lib/api";
 import { DEFAULT_FILTERS, type Filters } from "../lib/filter";
-import type { AppInfo, Listener, Settings, Snapshot } from "../lib/types";
+import type { AppInfo, Listener, RunInfo, Settings, Snapshot } from "../lib/types";
 
-export type PageId = "ports" | "projects" | "doctor" | "settings";
+export type PageId = "ports" | "projects" | "runs" | "history" | "doctor" | "settings";
 
 export interface Toast {
   id: number;
@@ -26,6 +26,16 @@ interface AppState {
    * leave the snapshot while the dialog still shows the result. */
   stopping: Listener | null;
   toasts: Toast[];
+  /** Runs this app started, newest first. */
+  runs: RunInfo[];
+  /** The run in the stop dialog, opened from the Runs page. */
+  stoppingRun: RunInfo | null;
+  /** The run whose output is open on the Runs page. */
+  selectedRunId: string | null;
+  /** The folder whose recipe the run dialog shows. */
+  runFolder: string | null;
+  /** Set when quitting was asked for while runs are active: how many. */
+  quitRequested: number | null;
 
   go: (page: PageId) => void;
   boot: () => Promise<void>;
@@ -42,6 +52,13 @@ interface AppState {
   saveSettings: (patch: Partial<Settings>) => Promise<void>;
   toast: (tone: Toast["tone"], text: string) => void;
   dismissToast: (id: number) => void;
+  refreshRuns: () => Promise<void>;
+  selectRun: (id: string | null) => void;
+  focusRun: (id: string) => void;
+  openRun: (folder: string) => void;
+  openRunStop: (run: RunInfo) => void;
+  closeRun: () => void;
+  setQuitRequested: (active: number | null) => void;
 }
 
 let toastId = 0;
@@ -97,6 +114,11 @@ export const useApp = create<AppState>((set, get) => ({
   selectedId: null,
   stopping: null,
   toasts: [],
+  runs: [],
+  stoppingRun: null,
+  selectedRunId: null,
+  runFolder: null,
+  quitRequested: null,
 
   go: (page) => set({ page }),
 
@@ -106,12 +128,17 @@ export const useApp = create<AppState>((set, get) => ({
       applyTheme(settings.theme);
       applyLanguage(settings.language);
       set({ info, settings, snapshot, paused: info.paused, ready: true });
+      void get().refreshRuns();
     } catch (e) {
       set({ bootError: errorText(e), ready: true });
     }
   },
 
-  setSnapshot: (snapshot) => set({ snapshot }),
+  setSnapshot: (snapshot) => {
+    set({ snapshot });
+    // Run states change with their processes; a snapshot is a good moment to ask.
+    void get().refreshRuns();
+  },
 
   setPaused: (paused) => set({ paused }),
 
@@ -155,7 +182,7 @@ export const useApp = create<AppState>((set, get) => ({
 
   openStop: (stopping) => set({ stopping }),
 
-  closeStop: () => set({ stopping: null }),
+  closeStop: () => set({ stopping: null, stoppingRun: null }),
 
   saveSettings: async (patch) => {
     const current = get().settings;
@@ -181,4 +208,26 @@ export const useApp = create<AppState>((set, get) => ({
   },
 
   dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
+
+  refreshRuns: async () => {
+    try {
+      const runs = await api.runs();
+      const selected = get().selectedRunId;
+      set({ runs, selectedRunId: selected && runs.some((r) => r.id === selected) ? selected : (runs[0]?.id ?? null) });
+    } catch {
+      // The list stays as it was; the next snapshot asks again.
+    }
+  },
+
+  selectRun: (selectedRunId) => set({ selectedRunId }),
+
+  focusRun: (id) => set({ page: "runs", selectedRunId: id }),
+
+  openRun: (runFolder) => set({ runFolder }),
+
+  openRunStop: (stoppingRun) => set({ stoppingRun }),
+
+  closeRun: () => set({ runFolder: null }),
+
+  setQuitRequested: (quitRequested) => set({ quitRequested }),
 }));

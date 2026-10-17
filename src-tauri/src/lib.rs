@@ -4,17 +4,20 @@
 //! discovery found.
 
 mod actions;
+mod runs;
 mod state;
 mod tray;
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use portpilot_core::net::parse_port_range;
 use portpilot_core::{Snapshot, StopReport};
 use portpilot_engine::doctor::{self, Environment, PortDiagnosis};
+use portpilot_engine::history::PortTracker;
 use portpilot_engine::projects::{self, ProjectGroup};
+use portpilot_engine::store::now_ms;
 use portpilot_engine::{Discovery, Options, StopRequest};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
@@ -50,10 +53,27 @@ fn remember_paths(state: &AppState, snapshot: &Snapshot) {
     }
 }
 
+/// Port changes go to the history while it is turned on.
+fn record_history(state: &AppState, tracker: &mut PortTracker, snapshot: &Snapshot, enabled: bool) {
+    let changes = tracker.update(snapshot);
+    if !enabled || changes.is_empty() {
+        return;
+    }
+    let now = now_ms();
+    let _ = state.with_store(|s| {
+        for (kind, event) in &changes {
+            s.record(*kind, now, event)?;
+        }
+        Ok(())
+    });
+}
+
 fn start_discovery(app: AppHandle) {
     std::thread::spawn(move || {
         let state = app.state::<AppState>();
         let mut discovery = Discovery::new(options_from(&state.settings.read()));
+        let mut tracker = PortTracker::default();
+        let mut pruned = Instant::now();
         loop {
             let settings = state.settings.read().clone();
             let opts = options_from(&settings);
@@ -64,8 +84,27 @@ fn start_discovery(app: AppHandle) {
                 discovery.invalidate_runtimes();
             }
             if !state.paused.load(Ordering::Relaxed) {
+                // This app's runs with every process of their jobs, then the runs that
+                // `portctl run` started, matched through parent chains.
+                let mut managed = state.runs.managed();
+                if let Some(store) = &state.store
+                    && let Ok(store) = store.lock()
+                {
+                    if pruned.elapsed() > Duration::from_secs(3600) {
+                        let _ = store.prune(now_ms());
+                        pruned = Instant::now();
+                    }
+                    for run in portpilot_engine::runs::managed_from_store(&store, settings.history)
+                    {
+                        if !managed.iter().any(|m| m.run_id == run.run_id) {
+                            managed.push(run);
+                        }
+                    }
+                }
+                discovery.set_managed(managed);
                 let snap = Arc::new(discovery.snapshot());
                 remember_paths(&state, &snap);
+                record_history(&state, &mut tracker, &snap, settings.history);
                 *state.snapshot.write() = Some(snap.clone());
                 let _ = app.emit("snapshot", &*snap);
                 tray::refresh(&app);
@@ -92,6 +131,8 @@ struct AppInfo {
     user: Option<String>,
     has_vscode: bool,
     settings_error: Option<String>,
+    /// Why leases, trusted commands and history are unavailable, if they are.
+    store_error: Option<String>,
     paused: bool,
 }
 
@@ -105,6 +146,7 @@ fn app_info(app: AppHandle, state: State<AppState>) -> AppInfo {
         user: portpilot_win::process::current_user(),
         has_vscode: actions::has_vscode(),
         settings_error: state.settings_error.read().clone(),
+        store_error: state.store_error.clone(),
         paused: state.paused.load(Ordering::Relaxed),
     }
 }
@@ -137,6 +179,7 @@ fn settings_get(state: State<AppState>) -> Settings {
 fn settings_set(state: State<AppState>, settings: Settings) -> CmdResult<Settings> {
     let settings = settings.sanitized();
     settings.save(&state.data_dir)?;
+    state.runs.set_prefs(settings.history_prefs());
     *state.settings.write() = settings.clone();
     *state.settings_error.write() = None;
     state.wake.notify();
@@ -167,12 +210,25 @@ async fn stop_listener(
         .iter()
         .find(|l| l.id == listener_id)
         .ok_or("this listener is gone; refresh and try again")?;
+    let grace = Duration::from_secs(u64::from(state.settings.read().grace_seconds));
+    // A run this app started is stopped as a whole: CTRL+BREAK to its process group, and its
+    // job is ended on consent.
+    if let Some(m) = &listener.managed
+        && state.runs.owns(&m.run_id)
+    {
+        let (runs, id) = (state.runs.clone(), m.run_id.clone());
+        let report = tauri::async_runtime::spawn_blocking(move || runs.stop(&id, grace, force))
+            .await
+            .map_err(|e| e.to_string())??;
+        state.invalidate.store(true, Ordering::Relaxed);
+        state.wake.notify();
+        return Ok(report);
+    }
     let target = listener
         .stop
         .target
         .clone()
-        .ok_or("Port Pilot does not stop this listener")?;
-    let grace = Duration::from_secs(u64::from(state.settings.read().grace_seconds));
+        .ok_or("PortPilot does not stop this listener")?;
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let req = StopRequest {
         target,
@@ -272,7 +328,7 @@ fn open_url(state: State<AppState>, listener_id: String) -> CmdResult<()> {
 #[tauri::command]
 fn open_path(state: State<AppState>, path: String, how: String) -> CmdResult<()> {
     if !state.is_known_path(&path) {
-        return Err("Port Pilot only opens folders it found itself".into());
+        return Err("PortPilot only opens folders it found itself".into());
     }
     match how.as_str() {
         "folder" => actions::open_folder(&path),
@@ -280,6 +336,32 @@ fn open_path(state: State<AppState>, path: String, how: String) -> CmdResult<()>
         "editor" => actions::open_editor(&path),
         _ => Err(format!("unknown action {how}")),
     }
+}
+
+/// Quitting with runs still active asks in the window first: they are stopped before the app
+/// exits, since closing their jobs would end them without a graceful request.
+pub(crate) fn request_quit(app: &AppHandle) {
+    let active = app.state::<AppState>().runs.active_count();
+    if active == 0 {
+        app.exit(0);
+        return;
+    }
+    tray::show_main(app);
+    let _ = app.emit("quit-requested", active);
+}
+
+/// The user confirmed quitting with active runs: CTRL+BREAK to each, the grace period, then
+/// the jobs of runs that are still running are ended.
+#[tauri::command]
+async fn quit_app(app: AppHandle) -> CmdResult<()> {
+    let state = app.state::<AppState>();
+    let grace = Duration::from_secs(u64::from(state.settings.read().grace_seconds));
+    let runs = state.runs.clone();
+    tauri::async_runtime::spawn_blocking(move || runs.stop_all(grace))
+        .await
+        .map_err(|e| e.to_string())?;
+    app.exit(0);
+    Ok(())
 }
 
 pub fn run() {
@@ -295,11 +377,15 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event
-                && window.state::<AppState>().settings.read().close_to_tray
-            {
-                api.prevent_close();
-                let _ = window.hide();
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let state = window.state::<AppState>();
+                if state.settings.read().close_to_tray {
+                    api.prevent_close();
+                    let _ = window.hide();
+                } else if state.runs.active_count() > 0 {
+                    api.prevent_close();
+                    request_quit(window.app_handle());
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -317,7 +403,25 @@ pub fn run() {
             projects_overview,
             open_url,
             open_path,
+            quit_app,
+            runs::pick_project_folder,
+            runs::recent_projects,
+            runs::recipe_load,
+            runs::run_plan,
+            runs::run_reallocate,
+            runs::run_start,
+            runs::runs_list,
+            runs::run_output,
+            runs::run_output_text,
+            runs::run_stop,
+            runs::run_forget,
+            runs::leases_list,
+            runs::lease_release,
+            runs::history_list,
+            runs::history_clear,
+            runs::trust_list,
+            runs::trust_revoke,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Port Pilot");
+        .expect("error while running PortPilot");
 }

@@ -1,4 +1,4 @@
-//! Git context through the Git CLI. Port Pilot never takes Git's index lock: every call runs
+//! Git context through the Git CLI. PortPilot never takes Git's index lock: every call runs
 //! with `--no-optional-locks`, so a background refresh cannot get in the way of a commit.
 
 use std::collections::HashMap;

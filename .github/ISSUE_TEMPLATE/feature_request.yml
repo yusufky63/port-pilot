@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest something Port Pilot should explain or control.
+description: Suggest something PortPilot should explain or control.
 labels: [enhancement]
 body:
   - type: textarea

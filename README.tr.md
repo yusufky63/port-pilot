@@ -1,6 +1,6 @@
-# Port Pilot
+# PortPilot
 
-Port Pilot, Windows'taki her yerel geliştirme portunu açıklar: onu hangi süreç dinliyor, hangi projeye, Git worktree'sine, WSL dağıtımına ya da Docker container'ına ait, kim başlattı ve yanlış sürece dokunmadan nasıl durdurulur. Bildirim alanı simgesi olan bir masaüstü uygulaması ve aynı motoru kullanan `portctl` komut satırı aracından oluşur.
+PortPilot, Windows'taki her yerel geliştirme portunu açıklar: onu hangi süreç dinliyor, hangi projeye, Git worktree'sine, WSL dağıtımına ya da Docker container'ına ait, kim başlattı ve yanlış sürece dokunmadan nasıl durdurulur. Bildirim alanı simgesi olan bir masaüstü uygulaması ve aynı motoru kullanan `portctl` komut satırı aracından oluşur.
 
 [English](README.md) · [Nasıl çalışır](docs/architecture.md) · [CLI başvurusu](docs/cli.md) · [Güvenlik ve gizlilik](docs/security.md) · [SSS](docs/faq.md)
 
@@ -8,12 +8,12 @@ Port Pilot, Windows'taki her yerel geliştirme portunu açıklar: onu hangi sür
 
 ## Neye cevap verir
 
-"3000 portunda bir şey var" yalnızca belirtidir. Port Pilot arkasındaki soruları cevaplar:
+"3000 portunda bir şey var" yalnızca belirtidir. PortPilot arkasındaki soruları cevaplar:
 
 - **Sahibi kim.** Port, bağlanılan adres ve erişim (yalnızca yerel, tek ağ, tüm arabirimler); PID'si *ve* oluşturulma zamanıyla sahibi olan süreç, programı, komut satırı, kullanıcısı ve onu başlatan üst süreç zinciri.
-- **Hangi proje.** Proje klasörü ve Git deposu, dalı, commit'i, commit edilmemiş değişiklikler ve bağlı bir worktree olup olmadığı. Her eşleştirme nasıl yapıldığını söyler: *kesin* (WSL çalışma klasörü, Compose etiketi) ya da *çıkarım* (komut satırındaki bir yol, programın klasörü). Windows'ta başka bir sürecin çalışma klasörünü okuyan genel bir API yok; Port Pilot bilmediğini biliyormuş gibi göstermez.
+- **Hangi proje.** Proje klasörü ve Git deposu, dalı, commit'i, commit edilmemiş değişiklikler ve bağlı bir worktree olup olmadığı. Her eşleştirme nasıl yapıldığını söyler: *kesin* (WSL çalışma klasörü, Compose etiketi) ya da *çıkarım* (komut satırındaki bir yol, programın klasörü). Windows'ta başka bir sürecin çalışma klasörünü okuyan genel bir API yok; PortPilot bilmediğini biliyormuş gibi göstermez.
 - **Kim başlattı.** Üst süreç zincirindeki en yakın başlatıcı: Claude, Codex, Gemini CLI, VS Code, Cursor, bir JetBrains IDE'si, bir terminal ya da Windows hizmet yöneticisi.
-- **Windows mu, WSL mi, Docker mı.** WSL'in `wslrelay.exe`'si ve Docker Desktop'ın `com.docker.backend.exe`'si başka bir şey için host portu tutar. Port Pilot bunları yönlendirdikleri Linux sürecine (çalışan dağıtımlarda `ss` ile okunur) ya da container'a (Docker Engine API'sinden okunur) bağlar; arkasında bir şey olmayan yönlendiricileri, yani klasik "port is already allocated" durumunu işaretler.
+- **Windows mu, WSL mi, Docker mı.** WSL'in `wslrelay.exe`'si ve Docker Desktop'ın `com.docker.backend.exe`'si başka bir şey için host portu tutar. PortPilot bunları yönlendirdikleri Linux sürecine (çalışan dağıtımlarda `ss` ile okunur) ya da container'a (Docker Engine API'sinden okunur) bağlar; arkasında bir şey olmayan yönlendiricileri, yani klasik "port is already allocated" durumunu işaretler.
 - **Port neden kullanılamıyor.** Windows'un ayırdığı aralıklardaki (Hyper-V, WinNAT, WSL ve Docker bloklar ayırır) bir porta, dinleyen olmasa bile bağlanılamaz. `portctl who 3000` ve Tanılama sayfası bunu söyler ve yakındaki boş portları önerir.
 - **Çakışmalar.** Aynı portu farklı adreslerde dinleyen iki sahip (örneğin `127.0.0.1:3000` ve `[::1]:3000`); hangisinin yanıt vereceği IPv4 mü IPv6 mı kullanıldığına bağlıdır.
 
@@ -22,11 +22,38 @@ Port Pilot, Windows'taki her yerel geliştirme portunu açıklar: onu hangi sür
 1. **Önce kimlik.** Bir durdurma isteği kullanıcının gördüğü dinleyiciyi adlandırır. Motor süreci açar ve oluşturulma zamanını gösterilenle karşılaştırır; Windows PID'leri yeniden kullanır, uyuşmazlık her şeyi durdurur. Tutamaç sonuna kadar açık kalır, bu sırada PID yeniden kullanılamaz.
 2. **Önce nazik istek.** Pencereli programlara `WM_CLOSE` gider. Konsol programlarına CTRL+C, yok sayılırsa CTRL+BREAK gönderilir; ama yalnızca konsolu hedef, alt süreçleri, paket çalıştırıcısı ve onları başlatan kabuk dışında hiçbir şey kullanmıyorsa. Konsolu bir editör, bir ajan ya da ilgisiz bir program paylaşıyorsa sinyal gönderilmez.
 3. **Zorla sonlandırma ayrı bir karardır.** Süreç bekleme süresinden sonra hâlâ çalışıyorsa uygulama yeniden sorar ve zorla sonlandırmanın ne demek olduğunu açıklar; CLI'da `--force` (terminal yoksa `--yes` de) gerekir.
-4. **Asla** sistem süreçleri, Windows hizmetleri, WSL ya da Docker yönlendiricileri veya Port Pilot'un kendisi. WSL süreçlerine aynı başlama zamanı kontrolünden sonra dağıtım içinde SIGTERM gönderilir; container'lar Docker API'si üzerinden durdurulur.
+4. **Asla** sistem süreçleri, Windows hizmetleri, WSL ya da Docker yönlendiricileri veya PortPilot'un kendisi. WSL süreçlerine aynı başlama zamanı kontrolünden sonra dağıtım içinde SIGTERM gönderilir; container'lar Docker API'si üzerinden durdurulur.
+
+## Projeleri çalıştırma
+
+Bir proje `.portpilot.toml` tarifiyle buna katılır. PortPilot tarifi yalnızca siz istediğinizde okur (Çalıştır düğmesi, `portctl run`, `portctl lease`) ve bir depodan hiçbir şeyi kendiliğinden çalıştırmaz.
+
+```toml
+# .portpilot.toml at the repository root
+[project]
+name = "shop"
+
+[ports.web]
+preferred = 5173
+range = "5173-5199"
+
+[ports.api]
+preferred = 8080
+
+[run.dev]
+command = "pnpm dev --port {ports.web} --strictPort"
+cwd = "apps/web"
+env = { API_URL = "http://localhost:{ports.api}" }
+```
+
+- **Güven sorusu.** İlk seferde PortPilot komutun tam halini, klasörü, ortam değişkenlerini ve portları gösterir ve sorar: *Güven ve çalıştır*, *Bir kez çalıştır* ya da *Vazgeç*. Güvenilen bir komut, tarif onu değiştirene kadar sorusuz çalışır.
+- **Yönetilen çalıştırmalar.** Komut, gördüğünüz klasörde, `cmd.exe` ile, kendi süreç grubunda ve bir Windows Job Object içinde çalışır. PID'i, oluşturulma zamanı ve klasörü kaydedilir; dinleyicileri *kesin* olarak bu klasöre bağlanır. Çıktısı Çalıştırmalar sayfası için bellekte tutulur. Durdurma yalnızca çalıştırmanın süreç grubuna CTRL+BREAK gönderir; bütün job'ı sonlandırmak sizin onayınızla olur. PortPilot kapanırsa job çalıştırmayı da sonlandırır.
+- **Port kiralamaları.** `{ports.web}` bu depoya, worktree'ye ve servise kiralanmış bir port alır; bir deponun iki worktree'si asla aynı portu almaz. Kiralanan port doluysa PortPilot o worktree için sıradaki boş portu ayırmayı önerir. Yer tutucusu olmayan komutlara port verilmez.
+- **Geçmiş.** Çalıştırmaların, kapanışların ve port değişikliklerinin 14 gün tutulan yerel zaman çizelgesi. Siz açmadıkça komut satırı kaydedilmez.
 
 ## Gizlilik
 
-Port Pilot hiçbir yere bir şey göndermez: telemetri, çökme raporu, güncelleme kontrolü ya da hesap yok. Komut satırları token, parola ve anahtarlar maskelenerek gösterilir ve diske yazılmaz. Ortam değişkenleri hiç okunmaz. Ayrıntılar [docs/security.md](docs/security.md) dosyasında.
+PortPilot hiçbir yere bir şey göndermez: telemetri, çökme raporu, güncelleme kontrolü ya da hesap yok. Komut satırları token, parola ve anahtarlar maskelenerek gösterilir. Yerel geçmiş portları, süreç adlarını ve proje klasörlerini 14 gün tutar; komut satırlarını yalnızca siz açarsanız ve maskeleyerek kaydeder. Başka süreçlerin ortam değişkenleri hiç okunmaz. Ayrıntılar [docs/security.md](docs/security.md) dosyasında.
 
 ## Komut satırı
 
@@ -39,19 +66,22 @@ portctl stop 3000 --force --yes  # bekleme süresinden sonra sonlandır, sormada
 portctl find --range 3000-3999   # ayrılmış aralıklara göre kontrol edilmiş boş portlar
 portctl doctor                   # Windows, Git, WSL, Docker, ayrılmış aralıklar
 portctl projects                 # depo ve worktree'ye göre gruplanmış dinleyiciler
+portctl run dev                  # güven sorusundan sonra .portpilot.toml'daki [run.dev]'i çalıştırır
+portctl lease acquire web        # bu worktree'nin web servisine kiralanan portu yazar
+portctl history --kind runs      # son 14 günün çalıştırmaları ve kapanışları
 portctl list --json              # sürümlü JSON (schemaVersion 1)
 ```
 
-Çıkış kodları sabittir: 0 başarılı, 2 geçersiz argüman, 3 dinleyici yok, 4 sahibi belirsiz, 5 erişim reddedildi ya da reddedildi, 6 kimlik değişti, 7 nazik istek zaman aşımı, 8 WSL ya da Docker'a ulaşılamadı, 10 iç hata. Bkz. [docs/cli.md](docs/cli.md).
+Çıkış kodları sabittir: 0 başarılı, 2 geçersiz argüman, 3 dinleyici yok, 4 sahibi belirsiz, 5 erişim reddedildi ya da reddedildi, 6 kimlik değişti, 7 nazik istek zaman aşımı, 8 WSL ya da Docker'a ulaşılamadı, 9 port çakışması, 10 iç hata, 11 tarif yok ya da geçersiz. Bkz. [docs/cli.md](docs/cli.md).
 
 ## Kurulum
 
-Port Pilot henüz yayımlanmadı. Bir `v*` etiketi gönderildiğinde yayın iş akışı şunları üretir:
+PortPilot henüz yayımlanmadı. Bir `v*` etiketi gönderildiğinde yayın iş akışı şunları üretir:
 
 | Dosya | Kimin için |
 |---|---|
-| `Port-Pilot_<sürüm>_x64-setup.exe` | Yönetici izni istemeden geçerli kullanıcıya kurar. İngilizce ya da Türkçe kurulum. |
-| `Port-Pilot_<sürüm>_x64_portable.zip` | Kurulum yok. Ayarlar exe'nin yanındaki `data` klasöründe durur. `portctl.exe` de içindedir. |
+| `PortPilot_<sürüm>_x64-setup.exe` | Yönetici izni istemeden geçerli kullanıcıya kurar. İngilizce ya da Türkçe kurulum. |
+| `PortPilot_<sürüm>_x64_portable.zip` | Kurulum yok. Ayarlar exe'nin yanındaki `data` klasöründe durur. `portctl.exe` de içindedir. |
 | `SHA256SUMS.txt` | Her dosyanın sağlama toplamı. |
 
 Derlemeler henüz kod imzalı değil; SmartScreen uyarı gösterebilir. İkisi de Windows 10 ve 11'de zaten bulunan WebView2 çalışma zamanını kullanır.

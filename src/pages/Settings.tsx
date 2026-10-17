@@ -1,10 +1,13 @@
 import { AlertTriangle, ShieldCheck } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Banner, Card, CardHeader, PageHeader, Segmented, Select, Switch } from "../components/ui";
+import { Banner, Button, Card, CardHeader, Dialog, PageHeader, Segmented, Select, Switch } from "../components/ui";
 import { LANGUAGES } from "../i18n/languages";
-import type { Settings } from "../lib/types";
-import { useApp } from "../store/app";
+import { api } from "../lib/api";
+import { localDateTime } from "../lib/format";
+import { useLocale } from "../lib/hooks";
+import type { Settings, TrustEntry } from "../lib/types";
+import { errorText, useApp } from "../store/app";
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
@@ -15,6 +18,115 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
       </div>
       <div className="shrink-0">{children}</div>
     </div>
+  );
+}
+
+function HistoryCard({ settings, set }: { settings: Settings; set: (patch: Partial<Settings>) => void }) {
+  const { t } = useTranslation();
+  const toast = useApp((s) => s.toast);
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const clear = () => {
+    setBusy(true);
+    api
+      .historyClear()
+      .then(() => toast("positive", t("settings.historyCleared")))
+      .catch((e) => toast("danger", t("toast.failed", { error: errorText(e) })))
+      .finally(() => {
+        setBusy(false);
+        setConfirm(false);
+      });
+  };
+  return (
+    <Card>
+      <CardHeader
+        title={t("settings.history")}
+        actions={
+          <Button size="sm" variant="danger" onClick={() => setConfirm(true)}>
+            {t("settings.clearHistory")}
+          </Button>
+        }
+      />
+      <div className="divide-y divide-line">
+        <Row label={t("settings.historyOn")} hint={t("settings.historyOnHint")}>
+          <Switch checked={settings.history} onChange={(history) => set({ history })} label={t("settings.historyOn")} />
+        </Row>
+        <Row label={t("settings.historyCommands")} hint={t("settings.historyCommandsHint")}>
+          <Switch checked={settings.historyCommandLines} disabled={!settings.history} onChange={(historyCommandLines) => set({ historyCommandLines })} label={t("settings.historyCommands")} />
+        </Row>
+      </div>
+      <Dialog
+        open={confirm}
+        onClose={() => setConfirm(false)}
+        title={t("settings.clearTitle")}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConfirm(false)} data-autofocus>
+              {t("common.cancel")}
+            </Button>
+            <Button variant="dangerSolid" loading={busy} onClick={clear}>
+              {t("settings.clearConfirm")}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-[14px] text-ink-secondary">{t("settings.clearBody")}</p>
+      </Dialog>
+    </Card>
+  );
+}
+
+function TrustedCard() {
+  const { t } = useTranslation();
+  const locale = useLocale();
+  const toast = useApp((s) => s.toast);
+  const [list, setList] = useState<TrustEntry[] | null>(null);
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    api
+      .trusted()
+      .then((l) => alive && setList(l))
+      .catch(() => alive && setList([]));
+    return () => {
+      alive = false;
+    };
+  }, [version]);
+  const revoke = (e: TrustEntry) => {
+    api
+      .trustRevoke(e.projectKey, e.run)
+      .then(() => {
+        toast("positive", t("settings.revoked", { run: e.run }));
+        setVersion((v) => v + 1);
+      })
+      .catch((err) => toast("danger", t("toast.failed", { error: errorText(err) })));
+  };
+  return (
+    <Card>
+      <CardHeader title={t("settings.trusted")} hint={t("settings.trustedHint")} />
+      {list !== null && list.length === 0 ? (
+        <p className="px-4 py-3 text-[13px] text-ink-muted">{t("settings.trustedEmpty")}</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {(list ?? []).map((e) => (
+            <li key={`${e.projectKey}|${e.run}`} className="flex items-center justify-between gap-4 px-4 py-2.5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[13px] text-ink">{e.run}</span>
+                  <span className="truncate text-[13px] text-ink-secondary">{e.project}</span>
+                </div>
+                <div className="truncate font-mono text-[11px] text-ink-muted" title={e.folder}>
+                  {e.folder} · {t("settings.trustedOn", { date: localDateTime(new Date(e.trustedAt).toISOString(), locale) })}
+                </div>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => revoke(e)}>
+                {t("settings.revoke")}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 
@@ -36,6 +148,13 @@ export function SettingsPage() {
         <div className="mb-4">
           <Banner tone="danger" icon={<AlertTriangle size={16} strokeWidth={1.75} />}>
             {t("settings.readError")}
+          </Banner>
+        </div>
+      )}
+      {info?.storeError && (
+        <div className="mb-4">
+          <Banner tone="danger" icon={<AlertTriangle size={16} strokeWidth={1.75} />}>
+            {t("settings.storeError", { error: info.storeError })}
           </Banner>
         </div>
       )}
@@ -107,6 +226,10 @@ export function SettingsPage() {
               </Row>
             </div>
           </Card>
+
+          <HistoryCard settings={settings} set={set} />
+
+          <TrustedCard />
 
           <Card>
             <CardHeader title={t("settings.window")} />

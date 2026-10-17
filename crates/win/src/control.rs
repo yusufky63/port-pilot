@@ -1,13 +1,14 @@
 //! Process-control primitives. The engine composes them into the stop flow:
 //! verify identity, graceful request, wait, and terminate only when force was allowed.
 //!
-//! Identity is checked on an open handle. While Port Pilot holds the handle the PID cannot be
+//! Identity is checked on an open handle. While PortPilot holds the handle the PID cannot be
 //! reused, so the process that was verified is the process that gets signalled or terminated.
 
 use std::collections::HashSet;
 use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use windows::Win32::Foundation::{
@@ -29,7 +30,7 @@ use windows::core::{BOOL, Owned};
 
 use crate::process::handle_start_time;
 
-/// The argument that switches the Port Pilot executables into console-helper mode.
+/// The argument that switches the PortPilot executables into console-helper mode.
 pub const CONSOLE_HELPER_ARG: &str = "--pp-console-ctrl";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -173,6 +174,20 @@ pub fn console_signal(
     allowed: &HashSet<u32>,
     signal: ConsoleSignal,
 ) -> ConsoleCtrl {
+    console_signal_to_group(exe, pid, allowed, signal, 0)
+}
+
+/// Like [`console_signal`], but only processes in process group `group` receive the signal.
+/// Managed runs start with `CREATE_NEW_PROCESS_GROUP`, so their group is the PID of their first
+/// process. Windows delivers only CTRL+BREAK to a single group; `group` 0 means the whole
+/// console.
+pub fn console_signal_to_group(
+    exe: &Path,
+    pid: u32,
+    allowed: &HashSet<u32>,
+    signal: ConsoleSignal,
+    group: u32,
+) -> ConsoleCtrl {
     let list: Vec<String> = allowed.iter().map(u32::to_string).collect();
     let child = Command::new(exe)
         .arg(CONSOLE_HELPER_ARG)
@@ -182,6 +197,7 @@ pub fn console_signal(
             ConsoleSignal::CtrlC => "c",
             ConsoleSignal::CtrlBreak => "break",
         })
+        .arg(group.to_string())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -220,8 +236,31 @@ pub fn ignore_console_signals() {
     let _ = unsafe { SetConsoleCtrlHandler(Some(swallow_signal), true) };
 }
 
-/// Helper-mode entry point: `<exe> --pp-console-ctrl <pid> <allowed,pids> [c|break]`. Exit
-/// codes: 0 sent, 2 bad arguments, 3 no console, 4 shared console, 5 send failed.
+static CTRL_PRESSES: AtomicU32 = AtomicU32::new(0);
+
+unsafe extern "system" fn count_signal(ctrl_type: u32) -> BOOL {
+    if ctrl_type == CTRL_C_EVENT || ctrl_type == CTRL_BREAK_EVENT {
+        CTRL_PRESSES.fetch_add(1, Ordering::SeqCst);
+        return BOOL(1);
+    }
+    BOOL(0)
+}
+
+/// Lets the current console program handle CTRL+C itself: from now on a press only increments
+/// the returned counter. `portctl run` uses it to turn CTRL+C into a graceful stop of its run.
+pub fn catch_console_ctrl() -> &'static AtomicU32 {
+    let _ = unsafe { SetConsoleCtrlHandler(Some(count_signal), true) };
+    &CTRL_PRESSES
+}
+
+/// Sends CTRL+BREAK to process group `group` on the console the current process is attached
+/// to. Only processes started in that group receive it.
+pub fn ctrl_break_group(group: u32) -> bool {
+    group != 0 && unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, group) }.is_ok()
+}
+
+/// Helper-mode entry point: `<exe> --pp-console-ctrl <pid> <allowed,pids> [c|break] [group]`.
+/// Exit codes: 0 sent, 2 bad arguments, 3 no console, 4 shared console, 5 send failed.
 pub fn run_console_helper(args: &[String]) -> i32 {
     let Some(pos) = args.iter().position(|a| a == CONSOLE_HELPER_ARG) else {
         return 2;
@@ -237,6 +276,17 @@ pub fn run_console_helper(args: &[String]) -> i32 {
         Some("break") => CTRL_BREAK_EVENT,
         _ => CTRL_C_EVENT,
     };
+    let group = match args.get(pos + 4) {
+        Some(g) => match g.parse::<u32>() {
+            Ok(g) => g,
+            Err(_) => return 2,
+        },
+        None => 0,
+    };
+    // CTRL+C cannot be limited to one process group.
+    if group != 0 && event == CTRL_C_EVENT {
+        return 2;
+    }
     unsafe {
         let _ = FreeConsole();
         if AttachConsole(pid).is_err() {
@@ -255,7 +305,7 @@ pub fn run_console_helper(args: &[String]) -> i32 {
         }
         // The helper is attached now and would receive the signal too.
         let _ = SetConsoleCtrlHandler(Some(swallow_signal), true);
-        let sent = GenerateConsoleCtrlEvent(event, 0).is_ok();
+        let sent = GenerateConsoleCtrlEvent(event, group).is_ok();
         // Delivery is asynchronous; stay attached until the console has dispatched it.
         std::thread::sleep(Duration::from_millis(150));
         let _ = FreeConsole();
@@ -292,5 +342,17 @@ mod tests {
             run_console_helper(&[CONSOLE_HELPER_ARG.into(), "x".into()]),
             2
         );
+        let args = |rest: &[&str]| {
+            let mut v = vec![CONSOLE_HELPER_ARG.to_string(), "3".into(), "3".into()];
+            v.extend(rest.iter().map(|s| s.to_string()));
+            v
+        };
+        assert_eq!(run_console_helper(&args(&["c", "12"])), 2);
+        assert_eq!(run_console_helper(&args(&["break", "nope"])), 2);
+    }
+
+    #[test]
+    fn group_zero_is_never_signalled_directly() {
+        assert!(!ctrl_break_group(0));
     }
 }

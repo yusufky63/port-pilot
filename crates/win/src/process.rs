@@ -183,6 +183,13 @@ pub fn detail(pid: u32) -> Detail {
     }
 }
 
+/// Creation time of a process this program started, read from its own handle: valid even if
+/// the process already exited.
+pub fn child_start_time(child: &std::process::Child) -> Option<u64> {
+    use std::os::windows::io::AsRawHandle;
+    handle_start_time(HANDLE(child.as_raw_handle()))
+}
+
 /// Creation time of `pid` right now, or `None` if it cannot be opened or has exited.
 pub fn start_time(pid: u32) -> Option<u64> {
     let h = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.ok()?;
@@ -222,7 +229,7 @@ pub fn is_elevated() -> bool {
 }
 
 /// The current process followed by its ancestors, as far as creation times stay consistent.
-/// Port Pilot never offers to stop any of these.
+/// PortPilot never offers to stop any of these.
 pub fn own_lineage(procs: &HashMap<u32, ProcEntry>) -> Vec<u32> {
     let me = std::process::id();
     let mut out = vec![me];
